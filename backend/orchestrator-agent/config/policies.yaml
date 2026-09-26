@@ -1,0 +1,15 @@
+# Safety rules enforced by code (plan_guard), not by the LLM.
+max_steps: 10
+max_replans: 2
+max_clarifications: 2
+
+# Insert a verifier step before any step that needs human approval
+# (approval_mode internal/gate), so the approver sees checked data.
+verify_before_approval: true
+
+# If the plan has no verifier at all, add one on the final steps.
+verify_final: true
+
+# Email recipients allowed for the communication agent. Empty = any (dev only).
+# Example for production: ["altasnim.com"]
+allowed_email_domains: []

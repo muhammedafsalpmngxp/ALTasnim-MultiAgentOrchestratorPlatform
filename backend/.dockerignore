@@ -1,0 +1,15 @@
+**/.env
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+**/.langgraph_api
+**/tests
+**/evals
+**/CHANGELOG.md
+**/Dockerfile
+docker-compose.yml
+.env.example
+README.md

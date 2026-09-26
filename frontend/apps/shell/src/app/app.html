@@ -1,0 +1,36 @@
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◆</span>
+      <div>
+        <div class="name">ALTasnim</div>
+        <div class="sub muted">Agent Orchestrator</div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="section muted">Platform</div>
+      @for (link of platformLinks; track link.path) {
+        <a [routerLink]="link.path" routerLinkActive="active">
+          <span>{{ link.label }}</span>
+          @if (link.path === '/approvals' && pending() > 0) {
+            <span class="count">{{ pending() }}</span>
+          }
+        </a>
+      }
+      <div class="section muted">Agents</div>
+      @for (link of agentLinks; track link.path) {
+        <a [routerLink]="link.path" routerLinkActive="active">{{ link.label }}</a>
+      }
+    </nav>
+
+    <div class="status muted">
+      <span class="dot" [class.up]="backendUp()"></span>
+      {{ backendUp() ? 'Orchestrator connected' : 'Orchestrator offline (:8100)' }}
+    </div>
+  </aside>
+
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>

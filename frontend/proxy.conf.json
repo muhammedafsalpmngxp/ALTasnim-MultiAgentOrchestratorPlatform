@@ -1,0 +1,22 @@
+{
+  "/api/orchestrator": {
+    "target": "http://127.0.0.1:8100",
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/orchestrator": "" }
+  },
+  "/api/agents/web-search": {
+    "target": "http://127.0.0.1:8201",
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/agents/web-search": "" }
+  },
+  "/api/agents/communication": {
+    "target": "http://127.0.0.1:8202",
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/agents/communication": "" }
+  },
+  "/api/agents/verifier": {
+    "target": "http://127.0.0.1:8203",
+    "changeOrigin": true,
+    "pathRewrite": { "^/api/agents/verifier": "" }
+  }
+}

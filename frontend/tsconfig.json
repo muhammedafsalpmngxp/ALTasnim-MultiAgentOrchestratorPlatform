@@ -1,0 +1,52 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "preserve",
+    "paths": {
+      "@altasnim/shared": [
+        "./libs/shared/src/index.ts"
+      ]
+    }
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/shell/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/flow/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/runs/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/approvals/tsconfig.app.json"
+    },
+    {
+      "path": "./agents/web-search-ui/tsconfig.app.json"
+    },
+    {
+      "path": "./agents/communication-ui/tsconfig.app.json"
+    },
+    {
+      "path": "./agents/verifier-ui/tsconfig.app.json"
+    },
+    {
+      "path": "./apps/admin/tsconfig.app.json"
+    }
+  ]
+}

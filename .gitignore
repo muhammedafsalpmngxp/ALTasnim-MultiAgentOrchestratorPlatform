@@ -1,0 +1,56 @@
+# =====================================================================
+# ALTasnim Multi-Agent Orchestrator Platform
+# (frontend/.gitignore adds the Angular-specific rules)
+# =====================================================================
+
+# ---- secrets / local config (NEVER commit) ---------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- Python ----------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ---- LangGraph -------------------------------------------------------
+.langgraph_api/
+
+# ---- Node / Angular --------------------------------------------------
+node_modules/
+.angular/
+.nx/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- logs / temp -----------------------------------------------------
+*.log
+logs/
+tmp/
+*.tmp
+
+# ---- OS / editors ----------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+/.vscode/

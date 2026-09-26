@@ -1,0 +1,5 @@
+{"request": "What is the price of iPhone?", "expected_agents": ["web_search"], "expected_edges": []}
+{"request": "check the price of iphone then share the mail to rijin@gmail.com", "expected_agents": ["web_search", "communication"], "expected_edges": [["web_search", "communication"]]}
+{"request": "Compare iPhone price in Oman and UAE and email it to rijin@gmail.com", "expected_agents": ["web_search", "web_search", "communication"], "expected_edges": [["web_search", "communication"]], "expected_parallel": [["web_search", "web_search"]]}
+{"request": "check the iPhone price and email it", "expected_action": "clarify"}
+{"request": "hello", "expected_action": "answer"}

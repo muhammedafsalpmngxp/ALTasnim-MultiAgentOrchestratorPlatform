@@ -1,0 +1,88 @@
+<div class="page flow">
+  <div class="page-header">
+    <div>
+      <h1>Multi Agent Flow</h1>
+      <p class="muted">Describe a task. The supervisor decides which agents run, in which order, and when a human must approve.</p>
+    </div>
+    <div class="row">
+      @if (session.threadId(); as tid) {
+        <span class="muted small">thread {{ tid.slice(0, 8) }}</span>
+      }
+      @if (session.status() !== 'idle') {
+        <alt-status-badge [status]="session.status()" />
+      }
+      <button class="btn btn-sm" (click)="newFlow()" [disabled]="running()">New flow</button>
+    </div>
+  </div>
+
+  <div class="card composer">
+    <form class="row nowrap" (submit)="$event.preventDefault(); send()">
+      <input class="input" [value]="draft()" (input)="draft.set($any($event.target).value)"
+             placeholder="e.g. check the price of iphone then share the mail to someone@example.com"
+             [disabled]="running() || !!session.interrupt()" />
+      <button class="btn btn-primary" type="submit" [disabled]="running() || !draft().trim() || !!session.interrupt()">
+        Run flow
+      </button>
+    </form>
+    <div class="examples">
+      <span class="muted small">Try:</span>
+      @for (e of examples; track e) {
+        <button class="chip" (click)="send(e)" [disabled]="running() || !!session.interrupt()">{{ e }}</button>
+      }
+    </div>
+  </div>
+
+  <div class="card canvas">
+    <alt-flow-diagram
+      [plan]="values().plan"
+      [status]="values().step_status ?? {}"
+      [waitingStepId]="waitingStepId()"
+      [cards]="cards()"
+      [request]="values().request ?? ''"
+      [phase]="phase()"
+      [final]="values().final"
+      [replans]="values().replans ?? 0" />
+  </div>
+
+  @if (session.interrupt(); as pending) {
+    <alt-decision-panel [payload]="pending" [busy]="running()" (decided)="decide($event)" />
+  }
+
+  @if (session.error(); as err) {
+    <div class="card error">{{ err }}</div>
+  }
+
+  <div class="grid">
+    <div class="card conversation">
+      <h3>Conversation</h3>
+      @for (m of messages(); track $index) {
+        <div class="msg" [class.human]="m.type === 'human'">
+          <div class="bubble">{{ m.content }}</div>
+        </div>
+      } @empty {
+        <p class="muted">No messages yet.</p>
+      }
+      @if (running()) {
+        <div class="msg"><div class="bubble muted">Working…</div></div>
+      }
+    </div>
+
+    <div class="card timeline">
+      <h3>Live activity</h3>
+      @for (t of timeline(); track $index) {
+        <div class="event"><span class="muted time">{{ t.at }}</span> {{ t.text }}</div>
+      } @empty {
+        <p class="muted">Events appear here while the flow runs.</p>
+      }
+    </div>
+  </div>
+
+  @if (results().length) {
+    <div class="card">
+      <h3>Step results</h3>
+      @for (r of results(); track r.step_id) {
+        <alt-step-result [result]="r" />
+      }
+    </div>
+  }
+</div>

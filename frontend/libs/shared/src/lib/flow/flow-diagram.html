@@ -1,0 +1,57 @@
+<div class="scroller">
+  <div class="track" #track>
+    @for (col of graph().columns; track col.key; let i = $index) {
+      <section class="column" [class.alt]="i % 2 === 1">
+        <header class="stage">{{ i + 1 }}. {{ col.stage }}</header>
+        <div class="nodes">
+          @for (node of col.nodes; track node.id) {
+            <div class="node" [attr.data-state]="node.state" [attr.data-kind]="node.kind" [class.policy]="node.policy">
+              <div class="tile" [attr.data-node]="node.id" [attr.title]="node.sub">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons[node.icon]" /></svg>
+                @switch (node.state) {
+                  @case ('done') { <span class="mark ok" aria-label="done">✓</span> }
+                  @case ('failed') { <span class="mark bad" aria-label="failed">!</span> }
+                  @case ('rejected') { <span class="mark bad" aria-label="rejected">✕</span> }
+                  @case ('waiting') { <span class="mark wait" aria-label="waiting">…</span> }
+                }
+              </div>
+              <div class="label">{{ node.label }}</div>
+              <div class="sub">{{ node.sub }}</div>
+              @if (node.policy) {
+                <div class="tag">policy</div>
+              }
+              @if (node.badge) {
+                <div class="tag loop">{{ node.badge }}</div>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <svg class="edges" [attr.width]="size().w" [attr.height]="size().h" aria-hidden="true">
+      <defs>
+        @for (m of ['active', 'idle', 'ok', 'danger']; track m) {
+          <marker [attr.id]="'arrow-' + m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7"
+                  orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" [attr.class]="'head ' + m" />
+          </marker>
+        }
+      </defs>
+      @for (e of edges(); track $index) {
+        <path [attr.d]="e.d" [attr.class]="'edge ' + e.cls" [attr.marker-end]="'url(#arrow-' + e.marker + ')'" />
+        @if (e.label) {
+          <text [attr.x]="e.lx" [attr.y]="e.ly" [attr.class]="'edge-label ' + e.cls">{{ e.label }}</text>
+        }
+      }
+    </svg>
+  </div>
+</div>
+
+<div class="legend muted">
+  <span><i class="dot running"></i>running</span>
+  <span><i class="dot waiting"></i>waiting for approval</span>
+  <span><i class="dot done"></i>done</span>
+  <span><i class="dot failed"></i>failed / rejected</span>
+  <span><i class="box"></i>added by policy</span>
+</div>

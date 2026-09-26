@@ -1,0 +1,39 @@
+# Agent registry for the dev environment.
+#
+# transport (overridden by env AGENT_TRANSPORT):
+#   local  - agent graphs run in-process, each with its own in-memory checkpointer.
+#            No servers needed. For development and tests only.
+#   remote - each agent is its own LangGraph Agent Server deployment; called with
+#            langgraph_sdk (threads/runs). Cards are discovered from GET <url>/card.
+#
+# To add an agent: add an entry here (enabled: false until it is ready).
+transport: local
+
+agents:
+  web_search:
+    enabled: true
+    url: http://localhost:8201
+    graph_id: web_search
+    local_graph: web_search_agent.graph:graph
+    local_card: web_search_agent.card:CARD
+
+  communication:
+    enabled: true
+    url: http://localhost:8202
+    graph_id: communication
+    local_graph: communication_agent.graph:graph
+    local_card: communication_agent.card:CARD
+
+  verifier:
+    enabled: true
+    url: http://localhost:8203
+    graph_id: verifier
+    local_graph: verifier_agent.graph:graph
+    local_card: verifier_agent.card:CARD
+
+  # data:
+  #   enabled: false
+  #   url: http://localhost:8204
+  #   graph_id: data
+  #   local_graph: data_agent.graph:graph
+  #   local_card: data_agent.card:CARD

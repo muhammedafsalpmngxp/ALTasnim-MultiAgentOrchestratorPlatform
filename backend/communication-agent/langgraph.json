@@ -1,0 +1,14 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "python_version": "3.12",
+  "dependencies": [".."],
+  "graphs": {
+    "communication": "./src/communication_agent/graph.py:graph"
+  },
+  "auth": {
+    "path": "./src/communication_agent/auth.py:auth"
+  },
+  "http": {
+    "app": "./src/communication_agent/api.py:app"
+  }
+}

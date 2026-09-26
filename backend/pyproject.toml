@@ -1,0 +1,46 @@
+# The ONLY pyproject for the backend.
+#
+# Packages all agent code as one installable project, so every agent can
+# `import utils` and the orchestrator tests can import the agents.
+# Third-party dependencies live in requirements.txt (the only requirements file).
+#
+#   pip install -r requirements.txt     (installs the deps AND this project, editable)
+
+[project]
+name = "altasnim-agents"
+version = "0.1.0"
+description = "ALTasnim multi-agent orchestrator: LangGraph agents (orchestrator, web search, communication, verifier)"
+requires-python = ">=3.11,<3.14"
+dependencies = []  # see requirements.txt
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# One entry per Python package. Add a line here when you add an agent.
+[tool.hatch.build.targets.wheel]
+packages = [
+  "utils",
+  "orchestrator-agent/src/orchestrator_agent",
+  "web-search-agent/src/web_search_agent",
+  "communication-agent/src/communication_agent",
+  "verifier-agent/src/verifier_agent",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "--import-mode=importlib -q"
+testpaths = [
+  "orchestrator-agent/tests",
+  "web-search-agent/tests",
+  "communication-agent/tests",
+  "verifier-agent/tests",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

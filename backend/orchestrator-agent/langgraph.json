@@ -1,0 +1,19 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "python_version": "3.12",
+  "dependencies": [".."],
+  "graphs": {
+    "orchestrator": "./src/orchestrator_agent/graph.py:graph"
+  },
+  "auth": {
+    "path": "./src/orchestrator_agent/auth.py:auth"
+  },
+  "http": {
+    "app": "./src/orchestrator_agent/api.py:app",
+    "cors": {
+      "allow_origins": ["http://localhost:4200"],
+      "allow_methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      "allow_headers": ["*"]
+    }
+  }
+}

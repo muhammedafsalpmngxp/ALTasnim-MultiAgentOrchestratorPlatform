@@ -1,0 +1,116 @@
+/* Shared design tokens + base styles. Imported by every app's src/styles.css. */
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --border: #e3e6eb;
+  --text: #1c2330;
+  --text-muted: #5e6878;
+  --primary: #3d5bd9;
+  --primary-soft: #e8edfd;
+  --info: #2f5fd0;
+  --info-soft: #e7eefc;
+  --ok: #1f7a3f;
+  --ok-soft: #e4f4e9;
+  --warn: #9a6200;
+  --warn-soft: #fbf1dc;
+  --danger: #b3261e;
+  --danger-soft: #fbe7e5;
+  --flow-band-a: #eef2fd;
+  --flow-band-b: #e2e8fb;
+  --flow-edge: #5b7cf0;
+  --flow-edge-idle: #b9c5ee;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1318;
+    --surface: #161b22;
+    --surface-2: #1d232c;
+    --border: #2b323d;
+    --text: #e6e9ee;
+    --text-muted: #9aa4b2;
+    --primary: #8ea4ff;
+    --primary-soft: #1c2442;
+    --info: #7ea2ff;
+    --info-soft: #1a2440;
+    --ok: #5cc587;
+    --ok-soft: #15301f;
+    --warn: #e0b04f;
+    --warn-soft: #33280f;
+    --danger: #f08a82;
+    --danger-soft: #3a1917;
+    --flow-band-a: #151b2c;
+    --flow-band-b: #1a2237;
+    --flow-edge: #7f9bff;
+    --flow-edge-idle: #39456a;
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 var(--font);
+}
+a { color: var(--primary); }
+h1, h2, h3 { margin: 0 0 8px; line-height: 1.25; }
+h1 { font-size: 20px; }
+h2 { font-size: 16px; }
+h3 { font-size: 14px; }
+pre, code { font-family: var(--mono); font-size: 12px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+.muted { color: var(--text-muted); }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.page { padding: 24px 28px; max-width: 1480px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+
+.btn {
+  font: inherit;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover { filter: brightness(1.08); background: var(--primary); }
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+.input, .textarea {
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.textarea { min-height: 120px; resize: vertical; font-family: var(--font); }
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
+
+table.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.table th { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.table tr.clickable { cursor: pointer; }
+.table tr.clickable:hover td { background: var(--surface-2); }

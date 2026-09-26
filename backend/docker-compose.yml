@@ -1,0 +1,51 @@
+# All agent deployments, each in its own container and port.
+#
+#   cd backend
+#   docker compose up --build              # orchestrator :8100, agents :8201-8203
+#   docker compose --profile mail up       # + Mailpit (EMAIL_CHANNEL=smtp), UI http://localhost:8025
+#
+# Configuration comes from backend/.env. Values under `environment:` override it.
+name: altasnim-agents
+
+x-agent: &agent
+  env_file:
+    - path: .env
+      required: false
+  restart: unless-stopped
+
+services:
+  web-search-agent:
+    <<: *agent
+    build: { context: ., dockerfile: web-search-agent/Dockerfile }
+    ports: ["8201:8201"]
+
+  communication-agent:
+    <<: *agent
+    build: { context: ., dockerfile: communication-agent/Dockerfile }
+    ports: ["8202:8202"]
+    environment:
+      EMAIL_SMTP_HOST: mailpit
+
+  verifier-agent:
+    <<: *agent
+    build: { context: ., dockerfile: verifier-agent/Dockerfile }
+    ports: ["8203:8203"]
+
+  orchestrator-agent:
+    <<: *agent
+    build: { context: ., dockerfile: orchestrator-agent/Dockerfile }
+    ports: ["8100:8100"]
+    environment:
+      AGENT_TRANSPORT: remote
+      AGENT_WEB_SEARCH_URL: http://web-search-agent:8201
+      AGENT_COMMUNICATION_URL: http://communication-agent:8202
+      AGENT_VERIFIER_URL: http://verifier-agent:8203
+    depends_on:
+      web-search-agent: { condition: service_healthy }
+      communication-agent: { condition: service_healthy }
+      verifier-agent: { condition: service_healthy }
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["mail"]
+    ports: ["1025:1025", "8025:8025"]
