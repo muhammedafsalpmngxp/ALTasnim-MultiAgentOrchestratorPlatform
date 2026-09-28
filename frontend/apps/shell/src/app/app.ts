@@ -24,6 +24,7 @@ export class App {
     { path: '/agents/web-search', label: 'Web search' },
     { path: '/agents/communication', label: 'Communication' },
     { path: '/agents/verifier', label: 'Verifier' },
+    { path: '/agents/rag', label: 'Document ingestion' },
   ];
 
   constructor() {

@@ -1,44 +1,16 @@
-"""API flow with fake models and an in-memory store (no Elasticsearch, no model download)."""
+"""API flow: real store on an in-memory Qdrant, stand-ins for the models (no download)."""
 
 import dataclasses
 
 import pytest
-from elasticsearch import ConnectionError as ESConnectionError
 from fastapi.testclient import TestClient
+from qdrant_client import QdrantClient
 from rag_agent import main, models, store
 
 
 @pytest.fixture
-def api(monkeypatch):
-    chunks: dict[str, dict] = {}
-
-    def add_chunks(document_id, document_name, doc_chunks, vectors):
-        assert len(doc_chunks) == len(vectors)
-        for i, (page, text) in enumerate(doc_chunks):
-            chunks[f"{document_id}_{i}"] = {"id": f"{document_id}_{i}", "document_id": document_id,
-                                            "document_name": document_name, "chunk_index": i, "page": page,
-                                            "content": text}
-
-    def delete_document(document_id):
-        ids = [k for k, c in chunks.items() if c["document_id"] == document_id]
-        for k in ids:
-            del chunks[k]
-        return len(ids)
-
-    def list_documents():
-        docs: dict[str, dict] = {}
-        for c in chunks.values():
-            d = docs.setdefault(c["document_id"], {"document_id": c["document_id"],
-                                                   "document_name": c["document_name"], "chunks": 0})
-            d["chunks"] += 1
-        return list(docs.values())
-
-    monkeypatch.setattr(store, "add_chunks", add_chunks)
-    monkeypatch.setattr(store, "hybrid_search", lambda q, v, n: [dict(c) for c in list(chunks.values())[:n]])
-    monkeypatch.setattr(store, "get_chunks", lambda d: [c for c in chunks.values() if c["document_id"] == d])
-    monkeypatch.setattr(store, "delete_document", delete_document)
-    monkeypatch.setattr(store, "list_documents", list_documents)
-    monkeypatch.setattr(models, "embed", lambda texts: [[0.5, 0.5] for _ in texts])
+def api(qdrant, fake_embed, monkeypatch):
+    monkeypatch.setattr(models, "embed", fake_embed)
     # relevance = share of question words found in the passage
     monkeypatch.setattr(models, "rerank", lambda q, ps: [
         len(set(q.lower().split()) & set(p.lower().split())) / len(q.split()) for p in ps])
@@ -97,13 +69,11 @@ def test_delete(api):
     assert api.get(f"/documents/{doc['document_id']}/chunks").status_code == 404
 
 
-def test_elasticsearch_down_is_503(api, monkeypatch):
-    def down():
-        raise ESConnectionError("connection refused")
-
-    monkeypatch.setattr(store, "list_documents", down)
+def test_qdrant_down_is_503(api, monkeypatch):
+    unreachable = QdrantClient(url="http://127.0.0.1:1", timeout=2)
+    monkeypatch.setattr(store, "client", lambda: unreachable)
     r = api.get("/documents")
-    assert r.status_code == 503 and "Elasticsearch unavailable" in r.json()["detail"]
+    assert r.status_code == 503 and "Qdrant unavailable" in r.json()["detail"]
 
 
 def test_health(api):

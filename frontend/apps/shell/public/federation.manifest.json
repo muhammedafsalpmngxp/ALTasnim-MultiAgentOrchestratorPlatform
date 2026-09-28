@@ -5,5 +5,6 @@
   "admin": "http://localhost:4204/remoteEntry.json",
   "web-search-ui": "http://localhost:4301/remoteEntry.json",
   "communication-ui": "http://localhost:4302/remoteEntry.json",
-  "verifier-ui": "http://localhost:4303/remoteEntry.json"
+  "verifier-ui": "http://localhost:4303/remoteEntry.json",
+  "rag-ui": "http://localhost:4304/remoteEntry.json"
 }

@@ -1,7 +1,7 @@
 """Rag-agent API.
 
-POST /documents  upload a file -> text -> chunks -> bge-m3 vectors -> Elasticsearch
-POST /retrieve   question -> BM25 + dense search -> fused -> bge-reranker -> top chunks
+POST /documents  upload a file -> text -> chunks -> bge-m3 dense + sparse vectors -> Qdrant
+POST /retrieve   question -> sparse + dense search -> fused (RRF) -> bge-reranker -> top chunks
 
 No LLM call: the question and the reranked chunks are returned for the next agent to answer from.
 """
@@ -9,10 +9,10 @@ No LLM call: the question and the reranked chunks are returned for the next agen
 import logging
 import uuid
 
-from elasticsearch import ConnectionError as ESConnectionError
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from qdrant_client.http.exceptions import ResponseHandlingException
 
 from . import chunking, models, parsing, store
 from .config import settings
@@ -20,12 +20,12 @@ from .config import settings
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("rag_agent")
 
-app = FastAPI(title="Rag-agent", description="Hybrid retrieval (BM25 + dense) with reranking.")
+app = FastAPI(title="Rag-agent", description="Hybrid retrieval (dense + sparse) with reranking.")
 
 
-@app.exception_handler(ESConnectionError)
-async def _es_unavailable(request: Request, exc: ESConnectionError) -> JSONResponse:
-    return JSONResponse(status_code=503, content={"detail": f"Elasticsearch unavailable at {settings.es_url}"})
+@app.exception_handler(ResponseHandlingException)
+async def _qdrant_unavailable(request: Request, exc: ResponseHandlingException) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": f"Qdrant unavailable at {settings.qdrant_url}"})
 
 
 class RetrieveRequest(BaseModel):
@@ -57,9 +57,9 @@ def upload_document(file: UploadFile) -> dict:
     if not chunks:
         raise HTTPException(status_code=422, detail="No text found in the file (scanned PDFs need OCR, not supported)")
 
-    vectors = models.embed([text for _, text in chunks])
-    document_id = uuid.uuid4().hex
-    store.add_chunks(document_id, name, chunks, vectors)
+    embeddings = models.embed([text for _, text in chunks])
+    document_id = str(uuid.uuid4())  # dashed form: Qdrant treats 32-hex strings as UUIDs and re-formats them
+    store.add_chunks(document_id, name, chunks, embeddings)
     log.info("indexed %s (%s): %d chunks", name, document_id, len(chunks))
     return {"document_id": document_id, "document_name": name, "chunks": len(chunks)}
 
@@ -87,8 +87,7 @@ def delete_document(document_id: str) -> None:
 def retrieve(req: RetrieveRequest) -> dict:
     """Returns {"question", "chunks": [{id, document_id, document_name, chunk_index, page, content, score}]},
     best first; score is the reranker's relevance (0..1)."""
-    vector = models.embed([req.question])[0]
-    candidates = store.hybrid_search(req.question, vector, settings.candidates)
+    candidates = store.hybrid_search(models.embed([req.question])[0], settings.candidates)
     if candidates:
         scores = models.rerank(req.question, [c["content"] for c in candidates])
         for candidate, score in zip(candidates, scores, strict=True):

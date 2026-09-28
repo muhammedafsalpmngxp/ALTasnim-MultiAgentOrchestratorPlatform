@@ -34,8 +34,10 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── orchestrator-agent/  :8100  supervisor, plan_guard, progress, run_agent, hitl_gate, respond
 │   ├── web-search-agent/    :8201  plan_queries → parallel search → summarize
 │   ├── communication-agent/ :8202  draft → human approval (interrupt) → send
-│   └── verifier-agent/      :8203  parallel checks → verdict
-│       (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
+│   ├── verifier-agent/      :8203  parallel checks → verdict
+│   │   (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
+│   └── Rag-agent/           :8000  FastAPI: ingest files → hybrid (dense + sparse) retrieval + rerank
+│                                   (own docker-compose.yml with Qdrant; not a LangGraph deployment yet)
 │
 ├── frontend/                       Angular 22 · Native Federation micro-frontends
 │   ├── apps/shell/          :4200  host: layout, navigation, loads every micro-frontend
@@ -43,7 +45,7 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── apps/runs/           :4202  run history + details
 │   ├── apps/approvals/      :4203  human-in-the-loop inbox
 │   ├── apps/admin/          :4204  agents & policies
-│   ├── agents/*-ui/      :4301-4303  one UI per agent (owned by the agent's team)
+│   ├── agents/*-ui/      :4301-4304  one UI per agent (owned by the agent's team)
 │   └── libs/shared/                @altasnim/shared: LangGraph SDK client, flow diagram, shared UI
 │
 └── .github/                        CODEOWNERS (one owner per agent: backend + UI folder), CI workflows
@@ -98,6 +100,7 @@ Run one agent: `cd backend/web-search-agent` then `langgraph dev --port 8201`. S
 | Person A | `backend/web-search-agent` | `frontend/agents/web-search-ui` |
 | Person B | `backend/communication-agent` | `frontend/agents/communication-ui` |
 | Person C | `backend/verifier-agent` | `frontend/agents/verifier-ui` |
+| Person D | `backend/Rag-agent` | `frontend/agents/rag-ui` |
 
 Adding an agent: see the "Add an agent" sections in the backend and frontend READMEs. The supervisor and the flow
 diagram pick up new agents automatically.

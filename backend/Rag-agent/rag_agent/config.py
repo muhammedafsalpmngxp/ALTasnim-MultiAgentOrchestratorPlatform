@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
-    es_url: str = os.getenv("ES_URL", "http://localhost:9200")
-    es_index: str = os.getenv("ES_INDEX", "rag_chunks")
+    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_collection: str = os.getenv("QDRANT_COLLECTION", "rag_chunks")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
     rerank_model: str = os.getenv("RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
     chunk_words: int = int(os.getenv("CHUNK_WORDS", "300"))

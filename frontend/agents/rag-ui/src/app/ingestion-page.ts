@@ -13,7 +13,7 @@ interface Upload {
   detail: string;
 }
 
-/** Rag-agent's own page: ingest files into its Elasticsearch index and see what is indexed. */
+/** Rag-agent's own page: ingest files into its Qdrant collection and see what is indexed. */
 @Component({
   selector: 'alt-ingestion-page',
   changeDetection: ChangeDetectionStrategy.OnPush,

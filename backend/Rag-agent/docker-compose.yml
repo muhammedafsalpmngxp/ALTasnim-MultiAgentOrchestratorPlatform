@@ -1,8 +1,9 @@
-# Rag-agent: Elasticsearch + the API.
+# Rag-agent: Qdrant + the API.
 #
 #   cd backend/Rag-agent
 #   docker compose up -d --build
-#   open http://localhost:8000/docs
+#   open http://localhost:8000/docs           (API)
+#   open http://localhost:6333/dashboard      (Qdrant UI: collection, points, vectors)
 #
 # The models (bge-m3, bge-reranker-v2-m3, ~4.5 GB) download on the first upload/question and are
 # cached in the `models` volume. They run on the NVIDIA GPU; on a machine without one, delete the
@@ -11,19 +12,17 @@
 name: rag-agent
 
 services:
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    ports:
+      - "127.0.0.1:6333:6333"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -v red"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
 
   api:
@@ -32,7 +31,7 @@ services:
       - path: .env
         required: false
     environment:
-      - ES_URL=http://elasticsearch:9200
+      - QDRANT_URL=http://qdrant:6333
     ports:
       - "127.0.0.1:8000:8000"  # no auth: keep it on localhost / the internal network
     volumes:
@@ -45,10 +44,10 @@ services:
               count: all
               capabilities: [gpu]
     depends_on:
-      elasticsearch:
+      qdrant:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  es_data:
+  qdrant_data:
   models:

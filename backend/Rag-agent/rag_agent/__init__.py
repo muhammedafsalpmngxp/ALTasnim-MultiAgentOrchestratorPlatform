@@ -1,1 +1,1 @@
-"""Rag-agent: upload documents, retrieve reranked chunks with hybrid (BM25 + dense) search."""
+"""Rag-agent: upload documents, retrieve reranked chunks with hybrid (dense + sparse) search in Qdrant."""

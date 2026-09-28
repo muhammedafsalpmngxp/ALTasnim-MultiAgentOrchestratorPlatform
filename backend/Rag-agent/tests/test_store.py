@@ -1,87 +1,56 @@
-"""Hybrid search logic against a fake Elasticsearch client (no server needed)."""
+"""Qdrant store against an in-memory Qdrant."""
 
 import pytest
 from rag_agent import store
 from rag_agent.config import settings
 
 
-def hit(hit_id: str, content: str = "") -> dict:
-    return {"_id": hit_id, "_source": {"document_id": "d", "content": content or hit_id}}
-
-
-class FakeIndices:
-    def __init__(self, exists: bool):
-        self._exists = exists
-        self.created = None
-
-    def exists(self, index):
-        return self._exists
-
-    def create(self, index, mappings):
-        self.created = mappings
-        self._exists = True
-
-
-class FakeES:
-    def __init__(self, bm25=(), dense=(), exists=True):
-        self.indices = FakeIndices(exists)
-        self.bm25, self.dense = list(bm25), list(dense)
-        self.calls = []
-
-    def search(self, **kwargs):
-        self.calls.append(kwargs)
-        return {"hits": {"hits": self.dense if "knn" in kwargs else self.bm25}}
-
-
 @pytest.fixture
-def fake(monkeypatch):
-    def install(es):
-        monkeypatch.setattr(store, "client", lambda: es)
-        return es
-    return install
+def add(qdrant, fake_embed):
+    def _add(document_id: str, name: str, texts: list[str], page: int | None = None) -> None:
+        store.add_chunks(document_id, name, [(page, t) for t in texts], fake_embed(texts))
+    return _add
 
 
-def test_rrf_prefers_hits_found_by_both_legs():
-    fused = store._rrf([[hit("a"), hit("b"), hit("c")], [hit("c"), hit("d")]], n=10)
-    assert [c["id"] for c in fused] == ["c", "a", "b", "d"]  # b and d tie; order kept
-    assert fused[0] == {"id": "c", "document_id": "d", "content": "c"}
+def test_collection_has_dense_and_sparse_vectors(qdrant, add):
+    add("d1", "a.pdf", ["retention is five percent", "steel price per ton"])
+    params = qdrant.get_collection(settings.qdrant_collection).config.params
+    assert params.vectors["dense"].size == 8
+    assert "sparse" in params.sparse_vectors
+    assert qdrant.count(settings.qdrant_collection).count == 2
 
 
-def test_rrf_keeps_top_n():
-    assert [c["id"] for c in store._rrf([[hit("a"), hit("b"), hit("c")]], n=2)] == ["a", "b"]
+def test_hybrid_search_finds_the_matching_chunk_first(add, fake_embed):
+    add("d1", "a.txt", ["weather is sunny today", "retention money is five percent", "steel price per ton"])
+    results = store.hybrid_search(fake_embed(["retention money"])[0], n=3)
+    assert results[0]["content"] == "retention money is five percent"
+    assert set(results[0]) == {"id", "document_id", "document_name", "chunk_index", "page", "content"}
+    assert len(results) == 3
 
 
-def test_hybrid_search_sends_bm25_and_knn_queries(fake):
-    es = fake(FakeES(bm25=[hit("a"), hit("b")], dense=[hit("b"), hit("c")]))
-    fused = store.hybrid_search("retention percent", [0.1, 0.2], n=5)
-
-    bm25, dense = es.calls
-    assert bm25["query"] == {"match": {"content": "retention percent"}} and bm25["size"] == 5
-    assert dense["knn"] == {"field": "embedding", "query_vector": [0.1, 0.2], "k": 5, "num_candidates": 100}
-    assert [c["id"] for c in fused] == ["b", "a", "c"]
+def test_hybrid_search_respects_n(add, fake_embed):
+    add("d1", "a.txt", [f"chunk number {i}" for i in range(10)])
+    assert len(store.hybrid_search(fake_embed(["chunk number 3"])[0], n=4)) == 4
 
 
-def test_hybrid_search_without_index_is_empty(fake):
-    es = fake(FakeES(exists=False))
-    assert store.hybrid_search("q", [0.1], n=5) == []
-    assert es.calls == []
+def test_empty_store(qdrant, fake_embed):
+    assert store.hybrid_search(fake_embed(["anything"])[0], n=5) == []
+    assert store.list_documents() == []
+    assert store.get_chunks("d1") == []
+    assert store.delete_document("d1") == 0
 
 
-def test_add_chunks_creates_index_and_bulk_indexes(fake, monkeypatch):
-    es = fake(FakeES(exists=False))
-    sent = {}
+def test_list_get_and_delete(add):
+    add("d1", "a.pdf", ["one two", "three four"], page=1)
+    add("d2", "b.txt", ["five six"])
 
-    def bulk(client, actions, refresh):
-        sent.update(client=client, actions=list(actions), refresh=refresh)
+    assert sorted(store.list_documents(), key=lambda d: d["document_id"]) == [
+        {"document_id": "d1", "document_name": "a.pdf", "chunks": 2},
+        {"document_id": "d2", "document_name": "b.txt", "chunks": 1},
+    ]
+    chunks = store.get_chunks("d1")
+    assert [(c["chunk_index"], c["page"], c["content"]) for c in chunks] == [(0, 1, "one two"), (1, 1, "three four")]
 
-    monkeypatch.setattr(store.helpers, "bulk", bulk)
-    store.add_chunks("doc1", "a.pdf", [(1, "first"), (2, "second")], [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
-
-    assert es.indices.created["properties"]["embedding"] == {
-        "type": "dense_vector", "dims": 3, "index": True, "similarity": "cosine"}
-    assert es.indices.created["properties"]["content"] == {"type": "text"}
-    assert sent["refresh"] == "wait_for" and sent["client"] is es
-    assert [a["_id"] for a in sent["actions"]] == ["doc1_0", "doc1_1"]
-    assert sent["actions"][1]["_index"] == settings.es_index
-    assert sent["actions"][1]["_source"] == {"document_id": "doc1", "document_name": "a.pdf", "chunk_index": 1,
-                                             "page": 2, "content": "second", "embedding": [0.4, 0.5, 0.6]}
+    assert store.delete_document("d1") == 2
+    assert store.get_chunks("d1") == []
+    assert [d["document_id"] for d in store.list_documents()] == ["d2"]

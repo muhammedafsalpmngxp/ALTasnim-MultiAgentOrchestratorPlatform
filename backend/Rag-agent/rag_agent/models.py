@@ -1,13 +1,19 @@
-"""bge-m3 dense embeddings and bge-reranker scores. Models load on first use (downloaded from
-Hugging Face the first time) and run on the GPU with fp16 when CUDA is available."""
+"""bge-m3 embeddings (dense + sparse from one pass) and bge-reranker scores. Models load on first use
+(downloaded from Hugging Face the first time) and run on the GPU with fp16 when CUDA is available."""
 
 import threading
+from typing import NamedTuple
 
 from .config import settings
 
 _lock = threading.Lock()
 _embedder = None
 _reranker = None
+
+
+class Embedding(NamedTuple):
+    dense: list[float]  # normalized dense vector
+    sparse: dict[int, float]  # token id -> weight (bge-m3 lexical weights, the keyword side of hybrid search)
 
 
 def _cuda() -> bool:
@@ -36,9 +42,12 @@ def _get_reranker():
     return _reranker
 
 
-def embed(texts: list[str]) -> list[list[float]]:
-    """Normalized dense vectors, one per text."""
-    return _get_embedder().encode(texts, batch_size=16, max_length=1024)["dense_vecs"].tolist()
+def embed(texts: list[str]) -> list[Embedding]:
+    out = _get_embedder().encode(texts, batch_size=16, max_length=1024, return_dense=True, return_sparse=True)
+    return [
+        Embedding(dense.tolist(), {int(token): float(weight) for token, weight in weights.items()})
+        for dense, weights in zip(out["dense_vecs"], out["lexical_weights"], strict=True)
+    ]
 
 
 def rerank(question: str, passages: list[str]) -> list[float]:
