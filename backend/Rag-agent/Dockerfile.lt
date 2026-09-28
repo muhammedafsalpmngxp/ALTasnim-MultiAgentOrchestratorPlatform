@@ -1,0 +1,110 @@
+FROM python:3.11-slim
+
+LABEL maintainer="L&T Files Assistant"
+LABEL description="On-premise AI assistant for L&T construction documents"
+
+# Install system dependencies
+# Note: libgl1-mesa-glx was renamed to libgl1 in newer Debian releases (the python:3.11-slim
+# base image now resolves to Debian "trixie") — libgl1-mesa-glx no longer exists as a package
+# name there, which is what broke this build. libgl1 provides the same OpenGL runtime needed by
+# OpenCV/ONNX Runtime's rendering dependencies in the deepdoc vision pipeline.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    libreoffice \
+    libgl1 \
+    libglib2.0-0 \
+    gettext-base \
+    unixodbc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy Python dependencies first (for layer caching)
+COPY requirements.txt ./backend/requirements.txt
+
+# Install Python dependencies
+# Uses a BuildKit cache mount instead of --no-cache-dir: previously, ANY change to
+# requirements.txt (even adding one line) forced uv to re-download every package from scratch,
+# including torch/transformers (~2-4GB) — the biggest cause of slow rebuilds. The cache mount
+# persists downloaded wheels across builds on this machine, so only the changed/new packages
+# actually re-download next time; the resulting image layer is unaffected either way.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    pip install uv && \
+    uv pip install --system -r ./backend/requirements.txt && \
+    # `crawl4ai` transitively pulls in `unclecode-litellm`, a fork that installs into the SAME
+    # `litellm/` package folder as our pinned `litellm==1.82.5`. Whichever installs last partially
+    # overwrites the other's files, leaving an inconsistent mix — e.g. `litellm/caching/
+    # redis_cache.py` (from one package) importing a symbol from `litellm/types/caching.py` (from
+    # the other) that doesn't exist there, crashing task_executor on import before any app code
+    # runs. Force-reinstalling the real litellm last guarantees its files always win.
+    uv pip install --system --reinstall --no-deps litellm==1.82.5
+
+# onnxruntime-gpu (the deepdoc OCR / layout / table-structure vision models — the heaviest part of
+# PDF parsing) needs CUDA 12 runtime + cuDNN 9 libraries. But torch ships CUDA 13
+# (libcublasLt.so.13 only), so onnxruntime's CUDA provider fails to load at runtime
+# ("libcublasLt.so.12: cannot open shared object file") and OCR silently falls back to CPU — the
+# main cause of slow document uploads. These cu12 wheels provide the .so.12 sonames onnxruntime
+# needs; they coexist with torch's .so.13 (distinct sonames — verified torch + FlagEmbedding GPU
+# still work). LD_LIBRARY_PATH below makes them discoverable.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system \
+        nvidia-cublas-cu12 nvidia-cuda-runtime-cu12 nvidia-cuda-nvrtc-cu12 \
+        nvidia-cufft-cu12 nvidia-curand-cu12 nvidia-cusparse-cu12 nvidia-cudnn-cu12 && \
+    # requirements.txt pulls in BOTH onnxruntime (CPU) and onnxruntime-gpu. They share the same
+    # `onnxruntime` module, and the CPU build non-deterministically shadows the GPU build — leaving
+    # only CPU/Azure providers, so deepdoc OCR falls back to CPU (slow). Remove the CPU package and
+    # reinstall onnxruntime-gpu so CUDAExecutionProvider is reliably present.
+    pip uninstall -y onnxruntime onnxruntime-gpu && \
+    uv pip install --system onnxruntime-gpu==1.23.2
+
+# rag_tokenizer.py (used for every document, not just one file type) calls nltk's word_tokenize/
+# lemmatizer at chunking time — without these downloaded ahead of time, every upload failed with
+# "Resource punkt_tab not found" the first time chunking ran inside the container. This mirrors
+# the same nltk.download step already documented in backend/README.md for local dev, which was
+# never carried over into the Docker image.
+RUN python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('wordnet'); nltk.download('averaged_perceptron_tagger'); nltk.download('averaged_perceptron_tagger_eng')"
+
+# Copy backend source (the build context is backend/ itself)
+COPY . ./backend/
+
+# huqie.txt is RAGFlow's tokenizer dictionary (~12MB) used by rag_tokenizer for BM25 tokenization
+# and term-frequency weighting. It is gitignored (see .gitignore), so a fresh clone won't have it
+# and the COPY above won't include it — which caused "[HUQIE] huqie.txt not found" + "Load term.freq
+# FAIL" and degraded keyword search. Fetch it here if it's missing. This is a no-op when the file is
+# already present in the build context (i.e. it was downloaded into backend/rag/res/ before build),
+# so it never re-downloads unnecessarily and keeps fresh builds reproducible.
+RUN test -f /app/backend/rag/res/huqie.txt || \
+    curl -sSL -o /app/backend/rag/res/huqie.txt \
+    https://huggingface.co/InfiniFlow/huqie/resolve/main/huqie.txt
+
+# Set PYTHONPATH so all RAGFlow internals resolve
+ENV PYTHONPATH=/app/backend
+# Make the CUDA 12 libs (installed above) discoverable by onnxruntime's CUDA execution provider so
+# deepdoc OCR/layout/table recognition runs on the GPU instead of falling back to CPU.
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/site-packages/nvidia/curand/lib:/usr/local/lib/python3.11/site-packages/nvidia/cusparse/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib
+# Silences the harmless "You're using a XLMRobertaTokenizerFast tokenizer..." advisory notice
+# from the reranker's tokenizer — informational only (not an error), started appearing now that
+# reranking actually runs (it was previously disabled due to the missing torch/FlagEmbedding
+# dependencies already fixed). Pure logging noise reduction, no behavior change.
+ENV TRANSFORMERS_NO_ADVISORY_WARNINGS=1
+
+# Create data directories
+RUN mkdir -p /app/data/uploads /app/data/logs /app/data/reports
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -sf http://localhost:8000/api/v1/health || exit 1
+
+# Generates backend/conf/service_conf.yaml from the RAGFlow-provided template at container
+# startup (see backend/docker/entrypoint.lt.sh) so MySQL/Redis/Elasticsearch hosts resolve to
+# the compose network's service names instead of the local-dev "localhost" defaults. Falls
+# through to the given CMD unchanged — same default (uvicorn) as before this change; the
+# task_executor service in docker-compose.prod.yml overrides this CMD, not the ENTRYPOINT.
+COPY docker/entrypoint.lt.sh /entrypoint.lt.sh
+RUN chmod +x /entrypoint.lt.sh
+ENTRYPOINT ["/entrypoint.lt.sh"]
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
