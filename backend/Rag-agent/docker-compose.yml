@@ -1,0 +1,54 @@
+# Rag-agent: Elasticsearch + the API.
+#
+#   cd backend/Rag-agent
+#   docker compose up -d --build
+#   open http://localhost:8000/docs
+#
+# The models (bge-m3, bge-reranker-v2-m3, ~4.5 GB) download on the first upload/question and are
+# cached in the `models` volume. They run on the NVIDIA GPU; on a machine without one, delete the
+# `deploy:` block below and they run on CPU.
+
+name: rag-agent
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -v red"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - ES_URL=http://elasticsearch:9200
+    ports:
+      - "127.0.0.1:8000:8000"  # no auth: keep it on localhost / the internal network
+    volumes:
+      - models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  es_data:
+  models:
