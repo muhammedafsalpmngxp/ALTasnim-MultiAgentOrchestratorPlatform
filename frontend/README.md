@@ -18,7 +18,7 @@ frontend/
 │   ├── web-search-ui/     :4301  ./Routes (agent page) · ./Widget (findings view)
 │   ├── communication-ui/  :4302  ./Routes · ./Widget (email approval form + sent view)
 │   ├── verifier-ui/       :4303  ./Routes · ./Widget (verdict view)
-│   └── rag-ui/            :4304  ./Routes (document ingestion: upload files to the Rag agent :8000)
+│   └── rag-ui/            :4304  ./Routes (ingest files + chat that shows the retrieved chunks; Rag agent :8000)
 └── libs/shared/                            [frontend team] @altasnim/shared (singleton at runtime)
     ├── styles/theme.css         design tokens (light/dark), imported by every app
     └── src/lib/

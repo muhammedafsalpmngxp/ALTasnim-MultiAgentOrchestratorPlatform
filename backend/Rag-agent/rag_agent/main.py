@@ -2,25 +2,38 @@
 
 POST /documents  upload a file -> text -> chunks -> bge-m3 dense + sparse vectors -> Qdrant
 POST /retrieve   question -> sparse + dense search -> fused (RRF) -> bge-reranker -> top chunks
+                 -> POSTed as {question, chunks} to every next agent in NEXT_AGENTS (found on the LAN)
 
-No LLM call: the question and the reranked chunks are returned for the next agent to answer from.
+No LLM call: the next agents answer from the question and the reranked chunks.
 """
 
 import logging
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from qdrant_client.http.exceptions import ResponseHandlingException
 
-from . import chunking, models, parsing, store
+from . import chunking, discovery, models, parsing, store
 from .config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("rag_agent")
 
-app = FastAPI(title="Rag-agent", description="Hybrid retrieval (dense + sparse) with reranking.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load both models on the main thread before serving: the first request no longer waits for them,
+    # and a failed load restarts the container before any request is accepted.
+    models.warm_up()
+    yield
+
+
+app = FastAPI(title="Rag-agent", description="Hybrid retrieval (dense + sparse) with reranking.", lifespan=lifespan)
 
 
 @app.exception_handler(ResponseHandlingException)
@@ -83,10 +96,48 @@ def delete_document(document_id: str) -> None:
         raise HTTPException(status_code=404, detail="Document not found")
 
 
+def _send(port: int, path: str, result: dict) -> dict:
+    """POST {question, chunks} to the PORT/PATH endpoint, on the machine found for it on the LAN.
+    If that machine stops answering, searches again once. Returns the reply or the error."""
+    endpoint = f"{port}{path}"
+    url = discovery.next_agent_url(port, path)  # scans the network when no machine is known yet
+    if url is None:
+        return {"endpoint": endpoint, "url": None,
+                "error": f"No machine in the local network has port {port} open and serves {path}"}
+    try:
+        try:
+            res = httpx.post(url, json=result, timeout=settings.next_agent_timeout)
+        except httpx.TransportError:  # machine gone or IP changed: find it again and retry once
+            new_url = discovery.next_agent_url(port, path, refresh=True)
+            if new_url is None:
+                raise
+            url = new_url
+            res = httpx.post(url, json=result, timeout=settings.next_agent_timeout)
+        res.raise_for_status()
+    except httpx.HTTPError as e:
+        log.warning("next agent %s failed: %s", url, e)
+        return {"endpoint": endpoint, "url": url, "error": str(e) or type(e).__name__}
+    try:
+        reply = res.json()
+    except ValueError:
+        reply = res.text
+    return {"endpoint": endpoint, "url": url, "status": res.status_code, "response": reply}
+
+
+def _pass_to_next_agents(result: dict) -> list[dict]:
+    """Send to every NEXT_AGENTS endpoint in parallel; one result per endpoint, in config order.
+    A failing next agent never loses the retrieved chunks."""
+    if not settings.next_agents:
+        return []
+    with ThreadPoolExecutor(max_workers=len(settings.next_agents)) as pool:
+        return list(pool.map(lambda endpoint: _send(*endpoint, result), settings.next_agents))
+
+
 @app.post("/retrieve")
 def retrieve(req: RetrieveRequest) -> dict:
-    """Returns {"question", "chunks": [{id, document_id, document_name, chunk_index, page, content, score}]},
-    best first; score is the reranker's relevance (0..1)."""
+    """Returns {"question", "chunks": [{id, document_id, document_name, chunk_index, page, content, score}],
+    "next_agents": [{endpoint, url, status, response} | {endpoint, url, error}, ...]}. Chunks are best
+    first; score is the reranker's relevance (0..1). {question, chunks} is what the next agents receive."""
     candidates = store.hybrid_search(models.embed([req.question])[0], settings.candidates)
     if candidates:
         scores = models.rerank(req.question, [c["content"] for c in candidates])
@@ -95,4 +146,5 @@ def retrieve(req: RetrieveRequest) -> dict:
         candidates.sort(key=lambda c: c["score"], reverse=True)
     chunks = candidates[:req.top_k]
     log.info("retrieve %r: %d candidates -> %d chunks", req.question[:80], len(candidates), len(chunks))
-    return {"question": req.question, "chunks": chunks}
+    result = {"question": req.question, "chunks": chunks}
+    return {**result, "next_agents": _pass_to_next_agents(result)}

@@ -1,11 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
-import { agentApiUrl } from '@altasnim/shared';
 
-interface RagDocument {
-  document_id: string;
-  document_name: string;
-  chunks: number;
-}
+import { RagDocument, errorText, request } from './api';
+import { RetrievalChat } from './retrieval-chat';
 
 interface Upload {
   name: string;
@@ -13,15 +9,16 @@ interface Upload {
   detail: string;
 }
 
-/** Rag-agent's own page: ingest files into its Qdrant collection and see what is indexed. */
+/** Rag-agent's own page: ingest files into its Qdrant collection, see what is indexed, and ask questions. */
 @Component({
   selector: 'alt-ingestion-page',
+  imports: [RetrievalChat],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
       <div class="page-header">
         <div>
-          <h1>Document ingestion</h1>
+          <h1>RAG</h1>
           <p class="muted">Rag agent · deployment :8000 · UI :4304 · PDF (text layer), DOCX, TXT, MD, CSV</p>
         </div>
         <button class="btn btn-primary" [disabled]="busy()" (click)="picker.click()">
@@ -42,32 +39,38 @@ interface Upload {
         </div>
       }
 
-      <div class="card">
-        <h2>Ingested documents</h2>
-        @if (error(); as err) {
-          <p class="error">{{ err }}</p>
-        } @else if (documents().length) {
-          <table class="table">
-            <thead>
-              <tr><th>Document</th><th>Chunks</th><th></th></tr>
-            </thead>
-            <tbody>
-              @for (d of documents(); track d.document_id) {
-                <tr>
-                  <td>{{ d.document_name }}</td>
-                  <td>{{ d.chunks }}</td>
-                  <td><button class="btn btn-sm btn-danger" [disabled]="busy()" (click)="remove(d)">Delete</button></td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        } @else {
-          <p class="muted">No documents yet. Use "Ingest files" to add some.</p>
-        }
+      <div class="columns">
+        <div class="card">
+          <h2>Ingested documents</h2>
+          @if (error(); as err) {
+            <p class="error">{{ err }}</p>
+          } @else if (documents().length) {
+            <table class="table">
+              <thead>
+                <tr><th>Document</th><th>Chunks</th><th></th></tr>
+              </thead>
+              <tbody>
+                @for (d of documents(); track d.document_id) {
+                  <tr>
+                    <td>{{ d.document_name }}</td>
+                    <td>{{ d.chunks }}</td>
+                    <td><button class="btn btn-sm btn-danger" [disabled]="busy()" (click)="remove(d)">Delete</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="muted">No documents yet. Use "Ingest files" to add some.</p>
+          }
+        </div>
+
+        <alt-retrieval-chat />
       </div>
     </div>
   `,
   styles: `
+    .columns { display: grid; grid-template-columns: minmax(280px, 1fr) 2fr; gap: 16px; align-items: start; }
+    @media (max-width: 1000px) { .columns { grid-template-columns: 1fr; } }
     .error, .state.error { color: var(--danger); }
     .state { font-weight: 600; min-width: 90px; text-transform: capitalize; }
     .state.done { color: var(--ok); }
@@ -128,17 +131,4 @@ export class IngestionPage {
   private setUpload(index: number, state: Upload['state'], detail: string): void {
     this.uploads.update((list) => list.map((u, i) => (i === index ? { ...u, state, detail } : u)));
   }
-}
-
-async function request<T = void>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${agentApiUrl('rag')}${path}`, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`);
-  }
-  return (res.status === 204 ? undefined : await res.json()) as T;
-}
-
-function errorText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

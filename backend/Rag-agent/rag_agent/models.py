@@ -42,6 +42,12 @@ def _get_reranker():
     return _reranker
 
 
+def warm_up() -> None:
+    """Load both models now (at server startup) instead of on the first request."""
+    _get_embedder()
+    _get_reranker()
+
+
 def embed(texts: list[str]) -> list[Embedding]:
     out = _get_embedder().encode(texts, batch_size=16, max_length=1024, return_dense=True, return_sparse=True)
     return [
