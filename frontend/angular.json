@@ -397,15 +397,15 @@
           "skipTests": true
         }
       },
-      "root": "agents/web-search-ui",
-      "sourceRoot": "agents/web-search-ui/src",
+      "root": "agents/web_search_ui",
+      "sourceRoot": "agents/web_search_ui/src",
       "prefix": "app",
       "architect": {
         "build": {
           "builder": "@angular-architects/native-federation:build",
           "options": {
             "cacheExternalArtifacts": true,
-            "tsConfig": "agents/web-search-ui/tsconfig.federation.json"
+            "tsConfig": "agents/web_search_ui/tsconfig.federation.json"
           },
           "configurations": {
             "production": {
@@ -422,7 +422,7 @@
           "builder": "@angular-architects/native-federation:build",
           "options": {
             "target": "web-search-ui:serve-original:development",
-            "tsConfig": "agents/web-search-ui/tsconfig.federation.json",
+            "tsConfig": "agents/web_search_ui/tsconfig.federation.json",
             "rebuildDelay": 500,
             "cacheExternalArtifacts": true,
             "dev": true,
@@ -433,16 +433,16 @@
         "esbuild": {
           "builder": "@angular/build:application",
           "options": {
-            "browser": "agents/web-search-ui/src/main.ts",
-            "tsConfig": "agents/web-search-ui/tsconfig.app.json",
+            "browser": "agents/web_search_ui/src/main.ts",
+            "tsConfig": "agents/web_search_ui/tsconfig.app.json",
             "assets": [
               {
                 "glob": "**/*",
-                "input": "agents/web-search-ui/public"
+                "input": "agents/web_search_ui/public"
               }
             ],
             "styles": [
-              "agents/web-search-ui/src/styles.css"
+              "agents/web_search_ui/src/styles.css"
             ],
             "polyfills": [
               "es-module-shims"

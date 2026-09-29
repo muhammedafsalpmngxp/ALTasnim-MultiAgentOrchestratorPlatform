@@ -24,6 +24,15 @@ langchain-openai>=1.0             # needed by synthesizer-agent (its tests impor
 # langchain-anthropic
 # langchain-google-genai
 
+# ---- web-search-agent (live search, page extraction, reranking, OpenAI answers)
+langchain-openai>=1.6             # query planning + grounded answers (WEB_SEARCH_OPENAI_*)
+pydantic-settings>=2.3            # WEB_SEARCH_* settings
+cachetools>=5.3                   # search / page caches
+ddgs>=9.0                         # DuckDuckGo provider (no key)
+trafilatura>=2.0                  # main-text extraction
+rank-bm25>=0.2.2                  # lexical prefilter / fallback ranking
+sentence-transformers>=3.0        # bge cross-encoder reranker (pulls torch; without it, BM25 is used)
+
 # ---- dev tools
 pytest>=8
 pytest-asyncio>=0.24

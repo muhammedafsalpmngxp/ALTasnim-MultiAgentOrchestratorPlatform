@@ -38,7 +38,7 @@ backend/
 │   ├── tests/                 unit/ (planner, plan_guard)  graph/ (end-to-end flows)
 │   └── evals/planning/        request → expected plan dataset
 │
-├── web-search-agent/          [Person A]  :8201   plan_queries → Send(search ×N) → summarize
+├── web_search_agent/          [Person A]  :8201   plan_queries → Send(search ×N) → summarize
 ├── communication-agent/       [Person B]  :8202   draft → approve (interrupt) → send
 └── verifier-agent/            [Person C]  :8203   (check_evidence ‖ check_completeness) → verdict
     every agent folder:
@@ -126,7 +126,7 @@ Notes:
 One terminal per agent (conda env active), from the agent's folder:
 
 ```powershell
-cd web-search-agent;    langgraph dev --port 8201 --no-browser
+cd web_search_agent;    langgraph dev --port 8201 --no-browser
 cd communication-agent; langgraph dev --port 8202 --no-browser
 cd verifier-agent;      langgraph dev --port 8203 --no-browser
 cd orchestrator-agent;  langgraph dev --port 8100 --no-browser

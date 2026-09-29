@@ -32,7 +32,7 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── docker-compose.yml          all agents, each in its own container and port
 │   ├── utils/                      shared utilities: contracts, LLM factory, env, auth, events, test kit
 │   ├── orchestrator-agent/  :8100  supervisor, plan_guard, progress, run_agent, hitl_gate, respond
-│   ├── web-search-agent/    :8201  plan_queries → parallel search → summarize
+│   ├── web_search_agent/    :8201  plan_queries → parallel search → summarize
 │   ├── communication-agent/ :8202  draft → human approval (interrupt) → send
 │   ├── verifier-agent/      :8203  parallel checks → verdict
 │   │   (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
@@ -89,7 +89,7 @@ pip install -r requirements.txt
 pytest
 ```
 
-Run one agent: `cd backend/web-search-agent` then `langgraph dev --port 8201`. See [backend/README.md](backend/README.md).
+Run one agent: `cd backend/web_search_agent` then `langgraph dev --port 8201`. See [backend/README.md](backend/README.md).
 
 ## Team ownership
 
@@ -97,7 +97,7 @@ Run one agent: `cd backend/web-search-agent` then `langgraph dev --port 8201`. S
 |---|---|---|
 | Platform lead | `backend/utils`, `backend/orchestrator-agent` | – |
 | Frontend lead | – | `frontend/apps`, `frontend/libs` |
-| Person A | `backend/web-search-agent` | `frontend/agents/web-search-ui` |
+| Person A | `backend/web_search_agent` | `frontend/agents/web_search_ui` |
 | Person B | `backend/communication-agent` | `frontend/agents/communication-ui` |
 | Person C | `backend/verifier-agent` | `frontend/agents/verifier-ui` |
 | Person D | `backend/Rag-agent` | `frontend/agents/rag-ui` |

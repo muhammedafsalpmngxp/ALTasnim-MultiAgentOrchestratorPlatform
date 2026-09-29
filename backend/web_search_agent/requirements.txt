@@ -1,0 +1,46 @@
+# web-search-agent only: everything needed to run and test THIS agent on its own
+# (without the orchestrator / communication / verifier dependencies).
+# A subset of backend/requirements.txt - keep the versions in sync with it.
+#
+#   conda activate <your-env>            # Python 3.11 - 3.13 (3.12 recommended)
+#   cd backend\web_search_agent
+#   pip install -r requirements.txt      # run from THIS folder ("-e .." below is relative to it)
+#   langgraph dev --port 8201 --no-browser
+#
+# The whole platform (all agents) still installs from backend/requirements.txt.
+
+# ---- LangGraph / LangChain
+langgraph>=1.2,<2
+langgraph-sdk>=0.4,<1                 # also: direct handoff to the verifier (WEB_SEARCH_VERIFIER_URL)
+langchain-core>=1.6,<2
+langgraph-cli[inmem]>=0.4,<1          # serves the agent: langgraph dev (+ LangGraph Studio)
+
+# ---- runtime
+pydantic>=2.7,<3
+pydantic-settings>=2.3                # WEB_SEARCH_* settings
+python-dotenv>=1.0                    # backend/.env (utils.env)
+fastapi>=0.110                        # custom routes: /card, /custom/* (api.py)
+httpx>=0.27                           # search providers, page fetching, verifier handoff
+cachetools>=5.3                       # search / page caches
+
+# ---- search, extraction, ranking
+ddgs>=9.0                             # DuckDuckGo provider (no key)
+trafilatura>=2.0                      # main-text extraction
+rank-bm25>=0.2.2                      # lexical prefilter / fallback ranking
+sentence-transformers>=3.0            # bge cross-encoder reranker (pulls torch; without it BM25 is used)
+# CPU-only torch is much smaller - install it first if you have no GPU:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# ---- LLM (query planning, WEB_SEARCH_OPENAI_*)
+langchain-openai>=1.6
+
+# ---- optional: JS-rendered pages (WEB_SEARCH_USE_PLAYWRIGHT_FALLBACK=true), then: playwright install chromium
+# playwright>=1.45
+
+# ---- dev tools
+pytest>=8
+pytest-asyncio>=0.24
+ruff>=0.6
+
+# ---- shared platform code (backend/utils) + this agent's package, editable. Keep this line last.
+-e ..

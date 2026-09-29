@@ -1,0 +1,90 @@
+@let r = result();
+<section class="wsr">
+  <div class="wsr__meta">
+    <span class="wsr__chip" [class.wsr__chip--ok]="r.status === 'ok'" [class.wsr__chip--failed]="r.status !== 'ok'">
+      {{ r.status }}
+    </span>
+    @if (r.provider_used) {
+      <span>Search: <strong>{{ r.provider_used }}</strong></span>
+    }
+    @if (r.reranker) {
+      <span>Reranker: <strong>{{ r.reranker }}</strong></span>
+    }
+    <span>{{ r.citations.length }} sources</span>
+    @for (h of handoffs(); track h.name) {
+      @if (h.status === 'sent') {
+        <span class="wsr__chip" [class.wsr__chip--ok]="h.passed !== false" [class.wsr__chip--failed]="h.passed === false"
+              [title]="h.url ?? ''">
+          {{ h.name }} {{ h.passed === false ? 'failed' : h.passed === true ? 'passed' : 'sent' }}
+        </span>
+      } @else if (h.status === 'failed') {
+        <span class="wsr__chip wsr__chip--failed" [title]="h.error ?? ''">{{ h.name }} not reachable</span>
+      }
+    }
+    @if (r.timings.total_s) {
+      <span>{{ formatSeconds(r.timings.total_s) }}</span>
+    }
+    @if (r.retries) {
+      <span class="muted">retried {{ r.retries }}x</span>
+    }
+    <button type="button" class="btn btn-sm wsr__retry" [disabled]="retrying()" (click)="retry.emit(r.trace_id)"
+            title="Send another request to the output agents - no search, no LLM call">
+      {{ retrying() ? 'Retrying…' : 'Retry' }}
+    </button>
+  </div>
+
+  @if (!r.evidence.length) {
+    <p class="wsr__notice">{{ r.summary || 'No relevant results found.' }}</p>
+  } @else {
+    <p class="wsr__question"><span>Question</span> {{ r.question }} <span>· top {{ r.findings.length }} go to the verifier</span></p>
+
+    <div class="wsr__grid">
+      <details class="wsr__evidence" open>
+        <summary>{{ r.evidence.length }} ranked evidence passage(s)</summary>
+        <ol>
+          @for (item of r.evidence; track item.rank) {
+            <li><alt-ws-evidence-card [evidence]="item" /></li>
+          }
+        </ol>
+      </details>
+
+      <aside class="wsr__sources">
+        <h3>Sources</h3>
+        <ol>
+          @for (source of r.citations; track source.citation_id) {
+            <li>
+              <a [href]="source.url" target="_blank" rel="noopener noreferrer">
+                [{{ source.citation_id }}] {{ source.title }}
+              </a>
+              <span>
+                {{ source.domain }}
+                @if (source.published_date) {
+                  · {{ formatDate(source.published_date) }}
+                }
+              </span>
+            </li>
+          }
+        </ol>
+      </aside>
+    </div>
+  }
+
+  @if (showFlow() && r.steps.length) {
+    <details class="wsr__flow">
+      <summary>Processing flow · {{ r.search_queries.length }} search quer{{ r.search_queries.length === 1 ? 'y' : 'ies' }}</summary>
+      <alt-ws-pipeline-flow [steps]="r.steps" [totalSeconds]="r.timings.total_s" [retryable]="true"
+                            [retrying]="retrying()" (retry)="retry.emit(r.trace_id)" />
+    </details>
+  }
+
+  @if (r.warnings.length) {
+    <details class="wsr__warnings">
+      <summary>{{ r.warnings.length }} warning(s)</summary>
+      <ul>
+        @for (warning of r.warnings; track $index) {
+          <li>{{ warning }}</li>
+        }
+      </ul>
+    </details>
+  }
+</section>

@@ -37,7 +37,7 @@
       "path": "./apps/approvals/tsconfig.app.json"
     },
     {
-      "path": "./agents/web-search-ui/tsconfig.app.json"
+      "path": "./agents/web_search_ui/tsconfig.app.json"
     },
     {
       "path": "./agents/communication-ui/tsconfig.app.json"
