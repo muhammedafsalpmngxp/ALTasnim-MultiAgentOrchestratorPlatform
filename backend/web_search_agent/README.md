@@ -170,13 +170,28 @@ python run.py               # agent :8201 + web-search-ui :4301; Ctrl+C stops bo
 ```
 
 `--backend-only` / `--frontend-only`, `--no-reload`, `--host 0.0.0.0` (reachable from other machines).
-The log is human readable and split into `FRONTEND │ BACKEND` columns when the terminal is 120+ characters
-wide (`--layout split|stacked|auto`; `--raw` for the original lines): local time, level (`!` warning,
-`✗` error), message, source - internal chatter (worker/queue stats, auth plumbing, build-cache notes) is left
-out, warnings and errors are always shown (`runlog.py`). Use the
-Python environment (3.11 - 3.13) you installed `requirements.txt` into. Ports 8201 / 4301 are checked first; the
-backend restarts when `src/`, `backend/utils`, the `.env` files or `langgraph.json` change. Logs are prefixed
-`[backend]` / `[frontend]`. UI: http://localhost:4301.
+Use the Python environment (3.11 - 3.13) you installed `requirements.txt` into. Ports 8201 / 4301 are checked
+first; the backend restarts when `src/`, `backend/utils`, the `.env` files or `langgraph.json` change.
+UI: http://localhost:4301.
+
+The log is one readable stream (`runlog.py`): local time, `run` / `backend` / `frontend`, message. Every search is
+a `▶` line, one line per finished step and a `■` summary (`↻` for Retry):
+
+```text
+11:38:10  backend   ▶ Search "who won the 2026 FIFA world cup"  (from web-search-ui, trace cb80aedf)
+11:38:11  backend     ✓ Query planner    1 query by gpt-4o-mini (1.2 s): 2026 FIFA World Cup winner
+11:38:13  backend     ✓ Web search       7 results via tavily,wikipedia (1.9 s)
+11:38:18  backend     ✓ Fetch & extract  4/4 pages extracted with Trafilatura (5.4 s)
+11:38:21  backend     ✓ Rerank           40 -> 5 passages (cross-encoder/ms-marco-MiniLM-L-6-v2) (2.6 s)
+11:38:21  backend     ✓ Send output      /verify @ 192.168.1.30: Verification passed (0.1 s)
+11:38:21  backend   ■ Done in 11.2 s: 3 contents, /verify passed  (trace cb80aedf)
+```
+
+Server internals, the startup banner, npm / vite / build-table noise and single HTTP requests are left out;
+warnings (yellow) and errors (red) are always shown. `--verbose` adds every HTTP request, `--layout split` shows
+`FRONTEND │ BACKEND` columns, `--raw` the original lines. The same log, without colours, is written to
+`logs/run.log` (new on every start). The step lines come from the agent itself (`steps.log_step`), so
+`docker compose logs` and orchestrator runs show them too.
 
 Backend alone, without run.py: `langgraph dev --port 8201 --no-browser` (from this folder).
 

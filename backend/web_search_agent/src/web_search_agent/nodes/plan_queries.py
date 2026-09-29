@@ -115,6 +115,7 @@ async def plan_queries(state: State) -> dict:
         "queries": fallback,
         "effective_freshness": params.freshness,
     }
+    logger.info('▶ Search "%s"  (from %s, trace %s)', question[:120], ctx.source_agent, update["trace_id"][:8])
 
     if not llm.is_configured():
         update["step_state"] = reporter.report(

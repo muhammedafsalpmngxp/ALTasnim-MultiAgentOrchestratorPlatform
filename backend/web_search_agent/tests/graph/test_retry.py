@@ -6,7 +6,6 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
-from web_search_agent import api
 from web_search_agent.context import Context
 from web_search_agent.graph import graph
 from web_search_agent.nodes.plan_queries import SearchPlan
@@ -14,6 +13,7 @@ from web_search_agent.services import checkpoints, handoff, history
 from web_search_agent.settings import get_settings
 
 from utils import AgentTask
+from web_search_agent import api
 
 VERDICT = {"status": "ok", "passed": True, "issues": [], "warnings": [], "summary": "Verification passed"}
 

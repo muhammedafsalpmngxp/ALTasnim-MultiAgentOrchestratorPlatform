@@ -1,5 +1,4 @@
 from langgraph.types import Send
-from web_search_agent import prompts
 from web_search_agent.card import CARD, WebSearchParams
 from web_search_agent.nodes.finalize import step_result
 from web_search_agent.nodes.plan_queries import question_from_task, upstream_hints
@@ -12,6 +11,7 @@ from web_search_agent.state import merge_spans
 from web_search_agent.steps import ordered_steps, plural, timings
 
 from utils import AgentTask
+from web_search_agent import prompts
 
 
 def test_chunker_respects_size_and_overlap():

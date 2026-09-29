@@ -41,7 +41,7 @@ async def deliver_output(step_id: str, result: dict, trace_id: str, reporter: St
         records = await handoff.deliver(step_id, result)
     except Exception as exc:  # noqa: BLE001 - nothing found / unreachable must not fail the search
         error = f"{type(exc).__name__}: {exc}"[:300]
-        logger.warning("[%s] output not sent: %s", trace_id, error)
+        logger.debug("[%s] output not sent: %s", trace_id, error)  # the failed step is logged (steps.log_step)
         step = reporter.report("verify", "failed", error, duration_s=time.time() - started)
         return {"handoffs": {}, "step": step["verify"], "warnings": [f"output not sent: {error}"]}
 
@@ -89,6 +89,19 @@ async def save_for_retry(state: State) -> None:
         logger.warning("[%s] run not saved - Retry will not be possible: %s", state.get("trace_id"), exc)
 
 
+def log_finished(details: dict, what: str = "Done") -> None:
+    """The run's last terminal line, e.g. ``■ Done in 7.4 s: 3 contents, /verify passed  (trace 3fa2c1d0)``."""
+    contents = len(details.get("findings") or [])
+    verdict = details.get("verification") or {}
+    if "passed" in verdict:
+        sent = f", {verdict.get('path') or 'verifier'} {'passed' if verdict['passed'] else 'failed'}"
+    else:
+        sent = f", sent to {len(details.get('handoffs') or {})} route(s)" if details.get("handoffs") else ""
+    seconds = (details.get("timings") or {}).get("total_s") if what == "Done" else details.get("retry_s")
+    took = f" in {seconds:.1f} s" if seconds is not None else ""
+    logger.info("■ %s%s: %d contents%s  (trace %s)", what, took, contents, sent, str(details.get("trace_id"))[:8])
+
+
 async def publish(details: dict, store=None) -> None:
     """Record the run for the UI: history, the saved run (for Retry), the LangGraph store (if any)."""
     history.record(details)
@@ -112,5 +125,6 @@ async def send_output(state: State) -> dict:
     details = apply_delivery(state["details"], delivered)
     details["timings"] = {**details["timings"], "total_s": round(time.time() - state["started_at"], 2)}
     await publish(details, runtime.store)
+    log_finished(details)
     get_stream_writer()({"type": "result", "result": details})
     return {"details": details}

@@ -1,6 +1,7 @@
 """The processing flow shown in the UI: each node reports its step through the custom stream
 (`stream_mode="custom"`) and records it in the state so it is also part of AgentOutput."""
 
+import logging
 import time
 from collections.abc import Callable
 from typing import Any
@@ -20,6 +21,10 @@ _TIMING_FIELDS = {"plan": "plan_s", "search": "search_s", "extract": "extract_s"
                   "rerank": "rerank_s"}
 
 Writer = Callable[[Any], None]
+
+logger = logging.getLogger(__name__)
+_MARK = {"done": "✓", "failed": "✗", "skipped": "–"}
+_TITLE_WIDTH = max(len(title) for _, title in FLOW)
 
 
 def pending_flow() -> list[dict]:
@@ -57,6 +62,7 @@ class StepReporter:
             duration_s=round(duration_s, 2) if duration_s is not None else None,
         ).model_dump()
         self._write({"type": "step", "step": step})
+        log_step(step)
         return {step_id: step}
 
     def skip(self, step_ids: list[StepId], reason: str) -> dict:
@@ -64,6 +70,19 @@ class StepReporter:
         for step_id in step_ids:
             update.update(self.report(step_id, "skipped", reason))
         return update
+
+
+def log_step(step: dict) -> None:
+    """One readable line per finished step (terminal / docker logs), e.g.
+    ``✓ Query planner    3 queries by gpt-4o-mini, past week (1.9 s): q1 | q2 | q3``"""
+    if step["status"] not in _MARK:
+        return
+    took = f" ({step['duration_s']:.1f} s)" if step.get("duration_s") is not None else ""
+    # the planned queries and the output agents' issues say something; the other steps' items repeat the detail
+    items = (step.get("items") or []) if step["id"] in ("plan", "verify") or step["status"] == "failed" else []
+    shown = f": {' | '.join(items[:3])}{f' (+{len(items) - 3} more)' if len(items) > 3 else ''}" if items else ""
+    line = f"{_MARK[step['status']]} {step['title']:<{_TITLE_WIDTH}}  {step['detail'] or step['status']}{took}{shown}"
+    (logger.warning if step["status"] == "failed" else logger.info)(line[:400])
 
 
 def ordered_steps(step_state: dict) -> list[dict]:

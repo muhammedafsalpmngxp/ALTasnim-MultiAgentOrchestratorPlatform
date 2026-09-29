@@ -33,7 +33,7 @@ from web_search_agent import __version__, llm
 from web_search_agent.card import CARD
 from web_search_agent.graph import graph
 from web_search_agent.nodes.finalize import run_details, step_result
-from web_search_agent.nodes.send_output import apply_delivery, deliver_output, publish
+from web_search_agent.nodes.send_output import apply_delivery, deliver_output, log_finished, publish
 from web_search_agent.schemas import Freshness
 from web_search_agent.services import checkpoints, handoff, history
 from web_search_agent.services.resources import providers_status, reranker
@@ -60,9 +60,9 @@ async def lifespan(_app: FastAPI):
 
 async def _find_routes() -> None:
     try:
-        logger.info("output will be sent to %s", ", ".join(await handoff.endpoints()))
+        await handoff.endpoints()  # handoff.discover() logs what it found
     except Exception as exc:  # noqa: BLE001 - searched again on the first run
-        logger.warning("output routes not found yet: %s", exc)
+        logger.debug("output routes not found yet: %s", exc)  # handoff.discover() already said so
 
 
 app = FastAPI(title="web_search agent custom routes", version=__version__, lifespan=lifespan)
@@ -134,6 +134,7 @@ async def retry(trace_id: Annotated[str, Query(min_length=1, max_length=100)]) -
     if not saved or "state" not in saved:
         raise HTTPException(status_code=404, detail=f"No saved run for trace_id {trace_id}")
     state = saved["state"]
+    logger.info('↻ Retry "%s"  (trace %s) - no search, no LLM', str(state["query"])[:120], trace_id[:8])
     started = time.time()
     result = step_result(state["query"], state.get("evidence") or [], get_settings().result_top_n)
     details = saved.get("details") or history.get(trace_id) or run_details(state, result, state.get("source_agent")
@@ -144,6 +145,7 @@ async def retry(trace_id: Annotated[str, Query(min_length=1, max_length=100)]) -
     details["retried_at"] = datetime.now(UTC).isoformat()
     details["retry_s"] = round(time.time() - started, 2)
     await publish(details)
+    log_finished(details, "Retry done")
     return details
 
 
