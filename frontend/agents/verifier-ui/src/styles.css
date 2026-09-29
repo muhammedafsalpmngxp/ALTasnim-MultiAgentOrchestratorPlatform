@@ -1,1 +1,16 @@
 @import "../../../libs/shared/styles/theme.css";
+
+/* The verifier UI is always light, also when running standalone on :4303 with a dark OS theme. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #f7f8fb;
+    --surface: #ffffff;
+    --surface-2: #f2f4f7;
+    --border: #e4e7ec;
+    --text: #101828;
+    --text-muted: #667085;
+    --primary: #3d5bd9;
+    --primary-soft: #eef1fd;
+    color-scheme: light;
+  }
+}
