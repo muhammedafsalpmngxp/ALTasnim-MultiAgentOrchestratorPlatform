@@ -11,12 +11,13 @@ import os
 import pytest
 from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import tool
-from web_search_agent import llm
 from web_search_agent.nodes import rank as rank_node
 from web_search_agent.services import history, resources
 from web_search_agent.services.reranker import Reranker
 from web_search_agent.settings import ENV_PREFIX, get_settings
 from web_search_agent.tools import fetch_page, search_api
+
+from web_search_agent import llm
 
 ARTICLE = "\n\n".join(
     [

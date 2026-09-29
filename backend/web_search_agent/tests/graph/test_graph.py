@@ -5,7 +5,6 @@ import asyncio
 import openai
 import pytest
 from langchain_core.runnables import RunnableLambda
-from web_search_agent import llm
 from web_search_agent.context import Context
 from web_search_agent.graph import graph
 from web_search_agent.nodes.plan_queries import SearchPlan
@@ -14,6 +13,7 @@ from web_search_agent.settings import get_settings
 
 from utils import AgentTask
 from utils.testing import run_agent_graph
+from web_search_agent import llm
 
 QUESTION = "latest solid-state batteries"
 FLOW = ["plan", "search", "extract", "chunk", "rerank", "verify"]

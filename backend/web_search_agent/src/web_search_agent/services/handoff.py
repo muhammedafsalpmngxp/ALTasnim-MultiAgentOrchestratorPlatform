@@ -191,9 +191,13 @@ async def discover() -> list[str]:
     bases = [f"http://{h}:{port}" for port in settings.output_ports for h in await open_hosts(port)]
     per_base = await asyncio.gather(*(routes_on(b, wanted) for b in bases))
     urls = [b + path for b, paths in zip(bases, per_base, strict=True) for path in paths]
-    logger.info("output routes %s: machines on port %s: %s -> found %s (%.1f s)", wanted,
-                ",".join(map(str, settings.output_ports)), [b.split("//")[1] for b in bases] or "none",
-                urls or "none", time.time() - started)
+    ports = ",".join(map(str, settings.output_ports))
+    if urls:
+        logger.info("Output goes to %s  (searched port %s in %.1f s)", ", ".join(urls), ports, time.time() - started)
+    else:
+        machines = ", ".join(b.split("//")[1] for b in bases) or "no machine answered"
+        logger.info("No %s found on port %s (%s) - the result stays here until one is reachable",
+                       ", ".join(wanted), ports, machines)
     _found.update(urls=urls, at=time.time())
     return urls
 

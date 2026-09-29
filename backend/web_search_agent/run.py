@@ -8,12 +8,14 @@
     python run.py --no-reload      # don't restart the backend on file changes
     python run.py --host 0.0.0.0   # backend reachable from other machines (default: this machine only)
     python run.py --install        # first run: pip install -r requirements.txt + npm install
-    python run.py --layout stacked # log as labelled lines instead of frontend | backend columns
+    python run.py --verbose        # also every HTTP request the backend makes (search APIs, pages, output)
+    python run.py --layout split   # frontend | backend in two columns instead of one labelled stream
     python run.py --raw            # the original, unfiltered log lines
 
 Use the Python environment you installed requirements.txt into (3.11 - 3.13). Ctrl+C stops both.
 If the frontend exits, everything stops; if the backend crashes, it waits for a fix and restarts.
 Nothing of the other agents is started; ports 8201 / 4301 are checked before anything runs.
+Settings come from this folder's .env. The log is also written, without colours, to logs/run.log (new every start).
 """
 
 from __future__ import annotations
@@ -36,24 +38,26 @@ AGENT_DIR = Path(__file__).resolve().parent  # backend/web_search_agent
 BACKEND_DIR = AGENT_DIR.parent  # backend
 REPO_DIR = BACKEND_DIR.parent
 FRONTEND_DIR = REPO_DIR / "frontend"
-UI_PROJECT = "web-search-ui"  # frontend/agents/web_search_ui (angular.json)
+UI_PROJECT = "web-search-ui"  # the Angular project name (angular.json, `npm run start:web-search-ui`)
+UI_DIR = FRONTEND_DIR / "agents" / "web_search_ui"
 BACKEND_PORT = 8201  # the platform's port for web-search-agent
 FRONTEND_PORT = 4301  # angular.json -> web-search-ui -> serve-original.options.port
+LOG_FILE = AGENT_DIR / "logs" / "run.log"  # git-ignored
 IS_WINDOWS = os.name == "nt"
 
-printer = Printer()  # replaced in main() once --layout / --raw are known (runlog.py)
+printer = Printer()  # replaced in main() once --layout / --raw / --verbose are known (runlog.py)
 
 
-def log(name: str, message: str) -> None:
-    """run.py's messages (name "run") full width; frontend / backend lines in their column."""
+def log(name: str, message: str, severity: str = "info") -> None:
+    """run.py's own messages (name "run") or a line of frontend / backend output."""
     if name == "run":
-        printer.run(message)
+        printer.run(message, severity)
     else:
         printer.line(name, message)
 
 
 def fail(message: str) -> None:
-    log("run", message)
+    log("run", message, "err")
     sys.exit(1)
 
 
@@ -94,8 +98,8 @@ def ensure_backend(install: bool) -> None:
 
 
 def ensure_frontend(install: bool) -> None:
-    if not (FRONTEND_DIR / "agents" / UI_PROJECT).is_dir():
-        fail(f"{FRONTEND_DIR / 'agents' / UI_PROJECT} not found.")
+    if not UI_DIR.is_dir():
+        fail(f"{UI_DIR} not found.")
     if (FRONTEND_DIR / "node_modules").is_dir():
         return
     if not install:
@@ -106,15 +110,19 @@ def ensure_frontend(install: bool) -> None:
 
 def check_env_file() -> None:
     env_file = AGENT_DIR / ".env"
-    if not env_file.is_file():
+    if env_file.is_file():
+        log("run", "Settings: backend/web_search_agent/.env")
+    else:
         log("run", "No backend/web_search_agent/.env - running with defaults (offline sample data). "
-                   "Create it:  copy .env.example .env")
+                   "Create it:  copy .env.example .env", "warn")
 
 
 # --- processes ----------------------------------------------------------------------
 class Service:
-    def __init__(self, name: str, command: list[str], cwd: Path, env: dict[str, str] | None = None):
+    def __init__(self, name: str, command: list[str], cwd: Path, env: dict[str, str] | None = None,
+                 summary: str = ""):
         self.name = name
+        self.summary = summary or " ".join(command)
         self.command = command
         self.cwd = cwd
         self.env = env or {}
@@ -221,21 +229,20 @@ def announce_when_ready(host: str, with_backend: bool, with_frontend: bool, serv
             frontend_ok = port_in_use(FRONTEND_PORT)
         time.sleep(1)
 
-    lines = ["", "=" * 70, " web-search-agent is running"]
+    rows: list[tuple[str, str]] = []
     if with_frontend:
-        lines += [f"   UI (web-search-ui)  http://localhost:{FRONTEND_PORT}"]
+        rows += [("UI", f"http://localhost:{FRONTEND_PORT}")]
     if with_backend:
-        lines += [
-            f"   Agent API           http://127.0.0.1:{BACKEND_PORT}   (graph: web_search)",
-            f"   Health / verifier   http://127.0.0.1:{BACKEND_PORT}/custom/health",
-            f"   Card                http://127.0.0.1:{BACKEND_PORT}/card",
-            f"   Studio              https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:{BACKEND_PORT}",
+        rows += [
+            ("Agent API", f"http://127.0.0.1:{BACKEND_PORT}   (graph: web_search)"),
+            ("Health", f"http://127.0.0.1:{BACKEND_PORT}/custom/health"),
+            ("Card", f"http://127.0.0.1:{BACKEND_PORT}/card"),
+            ("Studio", f"https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:{BACKEND_PORT}"),
         ]
         if host == "0.0.0.0":
-            lines += [f"   From other machines http://<this-machine-ip>:{BACKEND_PORT}"]
-    lines += [" Press Ctrl+C to stop.", "=" * 70, ""]
-    for line in lines:
-        log("run", line)
+            rows += [("Other machines", f"http://<this-machine-ip>:{BACKEND_PORT}")]
+    rows += [("Log file", str(LOG_FILE.relative_to(REPO_DIR)))]
+    printer.box("web-search-agent is running", rows, "Ctrl+C stops everything.")
 
 
 def main() -> int:
@@ -247,7 +254,8 @@ def main() -> int:
     parser.add_argument("--host", default="127.0.0.1", help="backend host; 0.0.0.0 = reachable from the network")
     parser.add_argument("--install", action="store_true", help="install missing backend / frontend dependencies")
     parser.add_argument("--layout", choices=("auto", "split", "stacked"), default="auto",
-                        help="log layout: frontend | backend columns (split) or labelled lines (stacked)")
+                        help="log layout: one labelled stream (stacked, default) or frontend | backend columns (split)")
+    parser.add_argument("--verbose", action="store_true", help="also log every HTTP request of the backend")
     parser.add_argument("--raw", action="store_true", help="show the original log lines, unfiltered")
     args = parser.parse_args()
 
@@ -258,7 +266,7 @@ def main() -> int:
     if IS_WINDOWS:
         os.system("")  # enables ANSI colours in the Windows console
     global printer
-    printer = Printer(args.layout, args.raw)
+    printer = Printer(args.layout, args.raw, verbose=args.verbose, log_file=LOG_FILE)
 
     with_backend = not args.frontend_only
     with_frontend = not args.backend_only
@@ -278,7 +286,7 @@ def main() -> int:
         # --no-reload: run.py does the reloading (see FileWatcher). Same Python as run.py -> same environment.
         command = [sys.executable, "-m", "langgraph_cli", "dev", "--port", str(BACKEND_PORT), "--host", args.host,
                    "--no-browser", "--no-reload"]
-        backend = Service("backend", command, AGENT_DIR)
+        backend = Service("backend", command, AGENT_DIR, summary=f"langgraph dev on {args.host}:{BACKEND_PORT}")
         services.append(backend)
         if not args.no_reload:
             watcher = FileWatcher(
@@ -288,14 +296,14 @@ def main() -> int:
     if with_frontend:
         ensure_frontend(args.install)
         # ng serve reloads itself on changes.
-        services.append(Service("frontend", [npm_executable(), "run", f"start:{UI_PROJECT}"], FRONTEND_DIR))
+        services.append(Service("frontend", [npm_executable(), "run", f"start:{UI_PROJECT}"], FRONTEND_DIR,
+                                summary=f"ng serve {UI_PROJECT} on :{FRONTEND_PORT}"))
 
     for service in services:
-        log("run", f"Starting {service.name}: {' '.join(service.command)}")
+        log("run", f"Starting {service.name} ({service.summary})")
         service.start()
     if watcher:
-        log("run", "Watching src/ (code + prompts), backend/utils, .env files and langgraph.json - "
-                   "the backend restarts on change.")
+        log("run", "The backend restarts when src/, backend/utils, the .env files or langgraph.json change.")
     threading.Thread(target=announce_when_ready, args=(args.host, with_backend, with_frontend, services),
                      daemon=True).start()
 
@@ -318,10 +326,10 @@ def main() -> int:
                 if service is backend and watcher:
                     # e.g. a syntax error in the file just saved: keep the frontend up and wait for a fix.
                     if not backend_crashed:
-                        log("run", f"backend exited with code {code}; waiting for a file change to restart it.")
+                        log("run", f"backend exited with code {code}; waiting for a file change to restart it.", "err")
                         backend_crashed = True
                     continue
-                log("run", f"{service.name} exited with code {code}; shutting down.")
+                log("run", f"{service.name} exited with code {code}; shutting down.", "err")
                 exit_code = code or 1
                 raise SystemExit
     except (KeyboardInterrupt, SystemExit):
@@ -330,6 +338,7 @@ def main() -> int:
         for service in services:
             service.stop()
         log("run", "Stopped.")
+        printer.close()
     return exit_code
 
 
