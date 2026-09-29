@@ -7,8 +7,9 @@ import logging
 import time
 import uuid
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import Body, FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -31,7 +32,7 @@ def card() -> dict:
 
 
 @app.post("/verify")
-async def verify(request: Request, payload: dict = Body(...)) -> dict:
+async def verify(request: Request, payload: Annotated[dict, Body()]) -> dict:
     """Plain HTTP entry for callers that push results directly (e.g. a web-search agent).
 
     Accepts either ``{"task": {...AgentTask...}}`` or any JSON object, which is
@@ -45,7 +46,7 @@ async def verify(request: Request, payload: dict = Body(...)) -> dict:
         "objective": "Verify pushed web search output",
         "inputs": {"web_search": payload},
     }
-    call = {"id": str(uuid.uuid4()), "received_at": datetime.now(timezone.utc).isoformat(),
+    call = {"id": str(uuid.uuid4()), "received_at": datetime.now(UTC).isoformat(),
             "client": client, "question": _question(payload, task), "task": task, "payload": payload}
     CALLS.appendleft(call)
     started = time.perf_counter()
