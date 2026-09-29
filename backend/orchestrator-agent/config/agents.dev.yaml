@@ -31,6 +31,15 @@ agents:
     local_graph: verifier_agent.graph:graph
     local_card: verifier_agent.card:CARD
 
+  # Disabled: the synthesizer is now a plain FastAPI app (POST /synthesize), and the orchestrator only
+  # calls LangGraph agents. Enable it again once it is called through the orchestrator.
+  synthesizer:
+    enabled: false
+    url: http://localhost:8204
+    graph_id: synthesizer
+    local_graph: synthesizer_agent.graph:graph
+    local_card: synthesizer_agent.card:CARD
+
   # data:
   #   enabled: false
   #   url: http://localhost:8204

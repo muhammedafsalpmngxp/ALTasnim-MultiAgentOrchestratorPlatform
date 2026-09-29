@@ -20,7 +20,7 @@ jsonschema>=4.20                  # orchestrator: validate plan params
 pyyaml>=6.0                       # orchestrator: config/*.yaml
 
 # ---- LLM provider (uncomment the one you use, then set LLM_MODEL_* in .env)
-# langchain-openai
+langchain-openai                  # synthesizer-agent (SYNTHESIZER_OPENAI_*), openai:<model> LLMs
 # langchain-anthropic
 # langchain-google-genai
 

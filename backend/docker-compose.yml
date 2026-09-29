@@ -1,7 +1,7 @@
 # All agent deployments, each in its own container and port.
 #
 #   cd backend
-#   docker compose up --build              # orchestrator :8100, agents :8201-8203
+#   docker compose up --build              # orchestrator :8100, agents :8201-8204
 #   docker compose --profile mail up       # + Mailpit (EMAIL_CHANNEL=smtp), UI http://localhost:8025
 #
 # Configuration comes from backend/.env. Values under `environment:` override it.
@@ -30,6 +30,14 @@ services:
     <<: *agent
     build: { context: ., dockerfile: verifier-agent/Dockerfile }
     ports: ["8203:8203"]
+
+  synthesizer-agent:
+    <<: *agent
+    build: { context: ./Synthesizer-agent }   # self-contained: only this agent's folder
+    ports: ["8204:8204"]
+    environment:
+      SYNTHESIZER_PORT: "8204"      # overrides backend/.env inside the container
+      SYNTHESIZER_RELOAD: "false"
 
   orchestrator-agent:
     <<: *agent

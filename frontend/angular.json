@@ -732,6 +732,127 @@
         }
       }
     },
+    "synthesizer-ui": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:class": {
+          "skipTests": true
+        },
+        "@schematics/angular:component": {
+          "skipTests": true
+        },
+        "@schematics/angular:directive": {
+          "skipTests": true
+        },
+        "@schematics/angular:guard": {
+          "skipTests": true
+        },
+        "@schematics/angular:interceptor": {
+          "skipTests": true
+        },
+        "@schematics/angular:pipe": {
+          "skipTests": true
+        },
+        "@schematics/angular:resolver": {
+          "skipTests": true
+        },
+        "@schematics/angular:service": {
+          "skipTests": true
+        }
+      },
+      "root": "agents/synthesizer-ui",
+      "sourceRoot": "agents/synthesizer-ui/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": {
+            "cacheExternalArtifacts": true,
+            "tsConfig": "agents/synthesizer-ui/tsconfig.federation.json"
+          },
+          "configurations": {
+            "production": {
+              "target": "synthesizer-ui:esbuild:production"
+            },
+            "development": {
+              "target": "synthesizer-ui:esbuild:development",
+              "dev": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": {
+            "target": "synthesizer-ui:serve-original:development",
+            "tsConfig": "agents/synthesizer-ui/tsconfig.federation.json",
+            "rebuildDelay": 500,
+            "cacheExternalArtifacts": true,
+            "dev": true,
+            "devServer": true,
+            "port": 0
+          }
+        },
+        "esbuild": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "agents/synthesizer-ui/src/main.ts",
+            "tsConfig": "agents/synthesizer-ui/tsconfig.app.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "agents/synthesizer-ui/public"
+              }
+            ],
+            "styles": [
+              "agents/synthesizer-ui/src/styles.css"
+            ],
+            "polyfills": [
+              "es-module-shims"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "16kB",
+                  "maximumError": "24kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve-original": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "synthesizer-ui:esbuild:production"
+            },
+            "development": {
+              "buildTarget": "synthesizer-ui:esbuild:development"
+            }
+          },
+          "defaultConfiguration": "development",
+          "options": {
+            "port": 4304,
+            "proxyConfig": "proxy.conf.json"
+          }
+        }
+      }
+    },
     "admin": {
       "projectType": "application",
       "schematics": {

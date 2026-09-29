@@ -24,4 +24,7 @@
 /backend/verifier-agent/            @person-c
 /frontend/agents/verifier-ui/       @person-c
 
+/backend/Synthesizer-agent/         @person-d
+/frontend/agents/synthesizer-ui/   @person-d
+
 /.github/                           @platform-lead
