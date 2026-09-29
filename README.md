@@ -58,52 +58,75 @@ Details: [backend/README.md](backend/README.md) · [frontend/README.md](frontend
 ## Work on your agent
 
 Everyone works on the `pro` branch, each person in their own agent's folders (see [Team ownership](#team-ownership)).
-Each agent is its own container and its own micro-frontend, so you start **only yours**. From the repo root:
+Each agent is its own container and its own micro-frontend, so you start **only yours**.
+
+Prerequisites: Docker Desktop (running), Node.js 20+ (tested with 24), Git. All commands run from the repo root.
+
+**1. Get the code (once, then `git pull` before you start working)**
 
 ```powershell
 git switch pro
 git pull
-node dev.mjs rag
 ```
 
-This builds and starts only that agent's container(s), then serves only its UI on its own port. `Ctrl+C` stops the UI,
-and the container keeps running. The first run creates `backend/.env` from `.env.example` and runs `npm install`.
+**2. Start your agent: its container + its UI**
 
 | Agent | Command | Container (API) | UI |
 |---|---|---|---|
-| Web search | `node dev.mjs web-search` | `web-search-agent` :8201 | `web-search-ui` http://localhost:4301 |
-| Communication | `node dev.mjs communication` | `communication-agent` :8202 | `communication-ui` http://localhost:4302 |
-| Verifier | `node dev.mjs verifier` | `verifier-agent` :8203 | `verifier-ui` http://localhost:4303 |
-| Synthesizer | `node dev.mjs synthesizer` | `synthesizer-agent` :8204 | `synthesizer-ui` http://localhost:4304 |
-| Rag | `node dev.mjs rag` | Rag-agent `api` :8000 + `qdrant` :6333 | `rag-ui` http://localhost:4305 |
-| Orchestrator (platform) | `node dev.mjs orchestrator` | `orchestrator-agent` :8100 (+ the 3 agents it calls) | shell, flow, runs, approvals, admin http://localhost:4200 |
+| Web search | `node dev.mjs web-search` | `web-search-agent` http://localhost:8201 | http://localhost:4301 |
+| Communication | `node dev.mjs communication` | `communication-agent` http://localhost:8202 | http://localhost:4302 |
+| Verifier | `node dev.mjs verifier` | `verifier-agent` http://localhost:8203 | http://localhost:4303 |
+| Synthesizer | `node dev.mjs synthesizer` | `synthesizer-agent` http://localhost:8204 | http://localhost:4304 |
+| Rag | `node dev.mjs rag` | Rag-agent `api` http://localhost:8000 + `qdrant` :6333 | http://localhost:4305 |
+| Orchestrator (platform) | `node dev.mjs orchestrator` | `orchestrator-agent` http://localhost:8100 (+ the 3 agents it calls) | http://localhost:4200 (shell, flow, runs, approvals, admin) |
 
-| Add | Does |
+It builds and starts only that agent's container(s), then serves only its UI on its own port. The first run creates
+`backend/.env` from `.env.example` (put your keys there) and runs `npm install`. `Ctrl+C` stops the UI; the container
+keeps running. `node dev.mjs` lists the agents.
+
+**3. While you work** (replace `rag` with your agent)
+
+| Command | Does |
 |---|---|
-| `--shell` | also serves the shell, so you see your UI inside the platform at http://localhost:4200 (other sections show "unavailable") |
-| `--backend` | only rebuilds + restarts your container (after a backend code change; the UI keeps running) |
-| `--ui` | only serves your UI (the container is already running) |
-| `--stop` | stops your container(s) |
+| `node dev.mjs rag --backend` | rebuilds + restarts only your container, after a backend code change (the UI keeps running) |
+| `node dev.mjs rag --ui` | serves only your UI (the container is already running) |
+| `node dev.mjs rag --shell` | also serves the shell: your UI inside the platform at http://localhost:4200 (other sections show "unavailable") |
+| `node dev.mjs rag --stop` | stops your container(s) |
 
-`node dev.mjs` lists the agents. API ports are `<AGENT>_PORT` in `backend/.env`.
+UI code changes reload in the browser by themselves. API ports are `<AGENT>_PORT` in `backend/.env`.
+
+**Without the script:** the same two steps by hand, one terminal each.
+
+| Agent | Container (from `backend/`) | UI (from `frontend/`) |
+|---|---|---|
+| Web search | `docker compose up -d --build web-search-agent` | `npm run start:web-search-ui` |
+| Communication | `docker compose up -d --build communication-agent` | `npm run start:communication-ui` |
+| Verifier | `docker compose up -d --build verifier-agent` | `npm run start:verifier-ui` |
+| Synthesizer | `docker compose up -d --build synthesizer-agent` | `npm run start:synthesizer-ui` |
+| Rag | `docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build` | `npm run start:rag-ui` |
+| Orchestrator | `docker compose up -d --build orchestrator-agent` | `npm run start:shell` (+ `start:flow`, `start:runs`, `start:approvals`, `start:admin`) |
+
+Stop a container by hand: `docker compose stop <service>` (Rag: `docker compose -f Rag-agent/docker-compose.yml stop`).
+Logs: `docker compose logs -f <service>` (Rag: `docker compose -f Rag-agent/docker-compose.yml logs -f`).
 
 ## Run everything
 
-Prerequisites: Docker Desktop, Node.js 20+ (tested with 24). For local Python development: Python 3.11–3.13 (conda env).
+For the full platform on one machine (e.g. a demo). From the repo root:
 
-**1. Backend (every agent in Docker)**
+**1. Backend: every agent in Docker**
 
 ```powershell
 cd backend
 copy .env.example .env
-docker compose up --build -d
+docker compose up -d --build
+docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build
 docker compose ps
 ```
 
-Wait until all services show `healthy`. Rag-agent has its own compose file (with Qdrant):
-`docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build`.
+Skip `copy` if `backend/.env` already exists. Wait until all services show `healthy` (Rag-agent: `docker compose -f
+Rag-agent/docker-compose.yml ps`; its models load in ~30 s).
 
-**2. Frontend (every micro-frontend)**, in a second terminal:
+**2. Frontend: every micro-frontend**, in a second terminal:
 
 ```powershell
 cd frontend
@@ -113,7 +136,14 @@ npm start
 
 **3. Open** http://localhost:4200, go to **Multi Agent Flow**, and try an example request.
 
-Stop the backend with `docker compose down`, and the frontend with `Ctrl+C`.
+**4. Stop:** `Ctrl+C` for the frontend, then from `backend/`:
+
+```powershell
+docker compose down
+docker compose -f Rag-agent/docker-compose.yml down
+```
+
+`down` removes the containers but keeps the data volumes (Rag's documents and model cache). Add `-v` only to delete them.
 
 ## Local development (without Docker)
 
