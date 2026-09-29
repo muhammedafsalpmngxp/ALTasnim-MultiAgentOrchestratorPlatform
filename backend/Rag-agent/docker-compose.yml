@@ -1,0 +1,55 @@
+# Rag-agent: Qdrant + the API.
+#
+#   cd backend/Rag-agent
+#   docker compose up -d --build
+#   open http://localhost:8000/docs           (API)
+#   open http://localhost:6333/dashboard      (Qdrant UI: collection, points, vectors)
+#
+# The models (bge-m3, bge-reranker-v2-m3, ~4.5 GB) download on the first upload/question and are
+# cached in the `models` volume. They run on the NVIDIA GPU; on a machine without one, delete the
+# `deploy:` block below and they run on CPU.
+
+name: rag-agent
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+    ports:
+      - "127.0.0.1:8000:8000"  # no auth: keep it on localhost / the internal network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reach services on this PC, e.g. the next agent on :8203
+    volumes:
+      - models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  models:

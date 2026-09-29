@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "concurrently -k -n shell,flow,runs,approvals,admin,web-search-ui,communication-ui,verifier-ui \"ng serve shell\" \"ng serve flow\" \"ng serve runs\" \"ng serve approvals\" \"ng serve admin\" \"ng serve web-search-ui\" \"ng serve communication-ui\" \"ng serve verifier-ui\"",
+    "start": "concurrently -k -n shell,flow,runs,approvals,admin,web-search-ui,communication-ui,verifier-ui,rag-ui \"ng serve shell\" \"ng serve flow\" \"ng serve runs\" \"ng serve approvals\" \"ng serve admin\" \"ng serve web-search-ui\" \"ng serve communication-ui\" \"ng serve verifier-ui\" \"ng serve rag-ui\"",
     "start:shell": "ng serve shell",
     "start:flow": "ng serve flow",
     "start:runs": "ng serve runs",
@@ -12,7 +12,8 @@
     "start:web-search-ui": "ng serve web-search-ui",
     "start:communication-ui": "ng serve communication-ui",
     "start:verifier-ui": "ng serve verifier-ui",
-    "build": "ng build shell && ng build flow && ng build runs && ng build approvals && ng build admin && ng build web-search-ui && ng build communication-ui && ng build verifier-ui"
+    "start:rag-ui": "ng serve rag-ui",
+    "build": "ng build shell && ng build flow && ng build runs && ng build approvals && ng build admin && ng build web-search-ui && ng build communication-ui && ng build verifier-ui && ng build rag-ui"
   },
   "private": true,
   "packageManager": "npm@11.17.0",
