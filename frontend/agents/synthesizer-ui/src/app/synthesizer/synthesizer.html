@@ -1,135 +1,279 @@
-<div class="chat">
-  <!-- ================= HEADER ================= -->
+<div class="synth-page">
+  <!-- ================= APP BAR ================= -->
   <header class="appbar">
-    <div class="brand">
-      <span class="avatar bot" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 6h6M4 12h9M4 18h6" /><path d="m15 9 5 3-5 3" />
-        </svg>
-      </span>
-      <div>
-        <h1>Synthesizer</h1>
-        <p class="sub">
-          <span class="dot" [class.ok]="online() === true" [class.bad]="online() === false"></span>
+    <div class="appbar-inner">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h6M4 12h9M4 18h6" /><path d="m15 9 5 3-5 3" />
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>Synthesizer Agent</h1>
+          <p>Writes the final answer from the other agents' data</p>
+        </div>
+      </div>
+
+      <div class="appbar-actions">
+        <span class="pill" [class.ok]="online() === true" [class.bad]="online() === false">
+          <span class="dot"></span>
           @switch (online()) {
             @case (true) { Online }
             @case (false) { Offline }
             @default { Connecting… }
           }
-          · <span class="mono">{{ modelLabel() }}</span>
-        </p>
+        </span>
+        <span class="pill model" [title]="card()?.llm?.base_url ?? ''">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="5" width="14" height="14" rx="2" /><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4" />
+          </svg>
+          <span class="mono">{{ modelLabel() }}</span>
+        </span>
+        @if (endpoint()) {
+          <button type="button" class="btn" (click)="copyText(endpoint(), 'Endpoint')" [title]="'Copy ' + endpoint()">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+            </svg>
+            <span class="mono endpoint">{{ endpoint() }}</span>
+          </button>
+        }
+        @if (runs().length) {
+          <button type="button" class="btn ghost" (click)="clear()" title="Clear the request history">Clear</button>
+        }
       </div>
-    </div>
-
-    <div class="bar-right">
-      <span class="stats" aria-label="Summary">
-        <span><b>{{ stats().answered }}</b> answered</span>
-        @if (stats().failed) {
-          <span class="bad"><b>{{ stats().failed }}</b> failed</span>
-        }
-        @if (stats().avgSeconds != null) {
-          <span>avg <b>{{ stats().avgSeconds | number: '1.1-1' }}s</b></span>
-        }
-      </span>
-      @if (runs().length) {
-        <button type="button" class="btn ghost" (click)="clear()" title="Clear the conversation">Clear</button>
-      }
     </div>
   </header>
 
-  @if (online() === false) {
-    <div class="banner">
-      <strong>The agent is not reachable at {{ apiUrl() }}.</strong>
-      Start it with <code>.venv\Scripts\python run.py</code>. If this page is opened by IP address, add that
-      address to <code>SYNTHESIZER_CORS_ORIGINS</code> in <code>backend/.env</code>.
-    </div>
-  }
-
-  <!-- ================= CONVERSATION ================= -->
-  <main class="thread" #thread aria-live="polite">
-    <div class="msg bot">
-      <span class="avatar bot" aria-hidden="true">S</span>
-      <div class="bubble intro">
-        <p><b>Hi, I'm the Synthesizer.</b> Questions from other agents appear here, with my answers.</p>
-        <p class="muted small">
-          Agents send their data to <code>{{ apiUrl() || '…' }}</code>.
-        </p>
-        <ol class="flow">
-          @for (name of flowSteps; track name; let i = $index) {
-            <li><span>{{ i + 1 }}</span>{{ name }}</li>
-          }
-        </ol>
+  <div class="content">
+    @if (online() === false) {
+      <div class="banner" role="alert">
+        <strong>The agent is not reachable at {{ apiUrl() }}.</strong>
+        Start it with <code>python run.py</code> in <code>backend\Synthesizer-agent</code>. If this page is opened by
+        IP address, add that address to <code>SYNTHESIZER_CORS_ORIGINS</code> in <code>backend/.env</code>.
       </div>
-    </div>
+    }
 
-    @for (run of conversation(); track run.id) {
-      <article class="turn">
-        <!-- question -->
-        <div class="msg user">
-          <div class="bubble">
-            <div class="who">
-              <span>{{ sender(run) }}</span>
-              <span class="muted">{{ run.received_at | date: 'HH:mm' }}</span>
-            </div>
-            @if (run.question) {
-              <p class="q">{{ run.question }}</p>
-            } @else {
-              <p class="q muted">No question given, the answer is worked out from the data.</p>
-            }
-          </div>
-          <span class="avatar user" [title]="sender(run)">{{ initials(sender(run)) }}</span>
-        </div>
+    <!-- ================= KPIs ================= -->
+    <section class="kpis" aria-label="Summary">
+      <div class="kpi">
+        <span class="kpi-label">Requests</span>
+        <span class="kpi-value">{{ counts().all }}</span>
+        <span class="kpi-sub">
+          @if (counts().running) { <span class="live-text">{{ counts().running }} in progress</span> }
+          @else { Kept in memory }
+        </span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Success rate</span>
+        <span class="kpi-value ok">{{ kpis().successRate != null ? kpis().successRate + '%' : '–' }}</span>
+        <span class="kpi-sub">{{ counts().success }} answered</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Failed</span>
+        <span class="kpi-value" [class.bad]="counts().failed">{{ counts().failed }}</span>
+        <span class="kpi-sub">{{ counts().failed ? 'Needs attention' : 'No failures' }}</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Avg response</span>
+        <span class="kpi-value">{{ kpis().avgSeconds != null ? (kpis().avgSeconds | number: '1.1-1') + 's' : '–' }}</span>
+        <span class="kpi-sub">{{ kpis().maxSeconds != null ? 'Slowest ' + kpis().maxSeconds + 's' : 'No answers yet' }}</span>
+      </div>
+    </section>
 
-        <!-- answer -->
-        <div class="msg bot">
-          <span class="avatar bot" aria-hidden="true">S</span>
-          <div class="bubble answer" [class]="runLabel(run)">
-            <div class="who">
-              <span>Synthesizer</span>
-              @if (run.state !== 'running') {
-                <span class="badge" [class]="runLabel(run)">{{ runLabel(run) }}</span>
-              }
-              @if (run.seconds != null) {
-                <span class="muted">{{ run.seconds }}s</span>
-              }
-            </div>
+    <!-- ================= LIVE PIPELINE ================= -->
+    <section class="panel pipeline" [class]="pipelineStatus().state" aria-labelledby="pipeline-title">
+      <div class="pipe-head">
+        <span class="pipe-title" id="pipeline-title"><span class="pulse" aria-hidden="true"></span>Live pipeline</span>
+        <span class="pipe-status" aria-live="polite">{{ pipelineStatus().label }}</span>
+        @if (pipelineRun(); as run) {
+          <span class="pipe-run" [title]="run.question ?? ''">
+            <b>{{ sender(run) }}</b> · {{ run.question ?? 'No question given' }}
+          </span>
+          @if (!following()) {
+            <button type="button" class="link" (click)="followLive()">Follow live</button>
+          }
+          <button type="button" class="link" (click)="replayPipeline()" title="Play the steps of this request again">
+            Replay
+          </button>
+        } @else {
+          <span class="pipe-run muted">Waiting for the first request…</span>
+        }
+      </div>
 
-            @switch (run.state) {
-              @case ('running') {
-                <div class="typing" aria-label="Writing the answer">
-                  <span></span><span></span><span></span>
-                  <em class="muted small">writing… {{ elapsed(run) }}s</em>
-                </div>
-              }
-              @case ('error') {
-                <div class="alert">
-                  <strong>I could not write the answer.</strong>
-                  <pre>{{ run.error }}</pre>
-                </div>
-              }
-              @default {
-                <div class="markdown" [innerHTML]="answerHtml(run)"></div>
-              }
-            }
-
-            @if (run.state !== 'running') {
-              <div class="actions">
-                @if (run.state === 'done' && answerText(run)) {
-                  <button type="button" class="link" (click)="copy(run)">
-                    {{ copiedId() === run.id ? 'Copied ✓' : 'Copy' }}
-                  </button>
+      <ol class="pipe-steps">
+        @for (step of pipeline(); track step.label; let i = $index) {
+          <li class="pipe-step" [class]="'is-' + step.state" [attr.aria-current]="step.state === 'active' ? 'step' : null">
+            <span class="pipe-node" aria-hidden="true">
+              @switch (step.state) {
+                @case ('done') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10" /></svg>
                 }
-                <button type="button" class="link" (click)="toggleDetails(run)" [attr.aria-expanded]="isOpen(run)">
-                  {{ isOpen(run) ? 'Hide details' : 'Details' }}
+                @case ('error') {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                }
+                @case ('skipped') { – }
+                @default { {{ i + 1 }} }
+              }
+            </span>
+            <span class="pipe-label">{{ step.label }}<span class="sr-only">: {{ step.state }}</span></span>
+            <span class="pipe-detail" [title]="step.detail">{{ step.detail }}</span>
+          </li>
+        }
+      </ol>
+    </section>
+
+    @if (runs().length) {
+      <!-- ================= REQUESTS + DETAIL ================= -->
+      <div class="workspace">
+        <aside class="panel list-panel" aria-label="Requests">
+          <div class="list-head">
+            <h2>Requests</h2>
+            <label class="search">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input type="search" placeholder="Search questions, answers, agents" aria-label="Search requests"
+                [value]="query()" (input)="query.set($any($event.target).value)" />
+            </label>
+            <div class="segmented" role="tablist" aria-label="Filter requests">
+              @for (f of ['all', 'success', 'failed', 'running']; track f) {
+                <button type="button" role="tab" [attr.aria-selected]="filter() === f" [class.on]="filter() === f"
+                  (click)="filter.set($any(f))">
+                  {{ f === 'all' ? 'All' : f === 'success' ? 'Answered' : f === 'failed' ? 'Failed' : 'Running' }}
+                  <span class="count">{{ $any(counts())[f] }}</span>
                 </button>
+              }
+            </div>
+          </div>
+
+          <ul class="run-list" (keydown)="onListKey($event)">
+            @for (run of visibleRuns(); track run.id) {
+              <li>
+                <button type="button" class="run-row" [id]="'run-' + run.id" [class.selected]="isSelected(run)"
+                  [attr.aria-current]="isSelected(run) ? 'true' : null" (click)="select(run)">
+                  <span class="status-dot" [class]="runLabel(run)" aria-hidden="true"></span>
+                  <span class="run-main">
+                    <span class="run-top">
+                      <span class="run-sender">{{ sender(run) }}</span>
+                      <span class="run-time" [title]="run.received_at | date: 'medium'">{{ ago(run) }}</span>
+                    </span>
+                    <span class="run-q" [class.muted]="!run.question">{{ run.question ?? 'No question given' }}</span>
+                    <span class="run-meta">
+                      <span class="badge" [class]="runLabel(run)">{{ statusText(run) }}</span>
+                      @if (run.state === 'running') {
+                        <span class="live-text">{{ elapsed(run) }}s</span>
+                      } @else if (run.seconds != null) {
+                        <span>{{ run.seconds }}s</span>
+                      }
+                      @if (run.result?.sources?.length) {
+                        <span>· {{ run.result?.sources?.length }} sources</span>
+                      }
+                    </span>
+                  </span>
+                </button>
+              </li>
+            } @empty {
+              <li class="list-empty">No requests match.</li>
+            }
+          </ul>
+        </aside>
+
+        @if (selected(); as run) {
+          <main class="panel detail" aria-label="Selected request">
+            <!-- header -->
+            <div class="detail-head">
+              <span class="avatar" aria-hidden="true">{{ initials(sender(run)) }}</span>
+              <div class="detail-title">
+                <div class="detail-name">
+                  {{ sender(run) }}
+                  <span class="badge" [class]="runLabel(run)">{{ statusText(run) }}</span>
+                  @if (following()) { <span class="chip live">Live</span> }
+                </div>
+                <div class="detail-sub">
+                  <span class="mono">{{ run.endpoint ?? 'POST /synthesize' }}</span>
+                  <span>·</span>
+                  <span>{{ run.received_at | date: 'MMM d, HH:mm:ss' }}</span>
+                  @if (run.seconds != null) { <span>·</span><span>{{ run.seconds }}s</span> }
+                </div>
               </div>
+            </div>
+
+            <!-- question -->
+            <section class="block">
+              <span class="eyebrow">Question</span>
+              @if (run.question) {
+                <p class="question">{{ run.question }}</p>
+              } @else {
+                <p class="question muted">No question was given, so the answer was worked out from the data.</p>
+              }
+            </section>
+
+            <!-- answer -->
+            <section class="block answer-block" [class]="runLabel(run)">
+              <div class="block-head">
+                <span class="eyebrow">Answer</span>
+                @if (run.state === 'done' && answerText(run)) {
+                  <button type="button" class="btn small" (click)="copyText(answerText(run), 'Answer')">Copy</button>
+                }
+              </div>
+              @switch (runLabel(run)) {
+                @case ('running') {
+                  <div class="writing" aria-label="Writing the answer">
+                    <span class="skeleton w90"></span><span class="skeleton w70"></span><span class="skeleton w40"></span>
+                    <span class="live-text small">Writing the answer · {{ elapsed(run) }}s</span>
+                  </div>
+                }
+                @case ('error') {
+                  <div class="alert">
+                    <strong>The LLM call failed.</strong>
+                    <pre>{{ run.error }}</pre>
+                    <span class="small">Check <code>SYNTHESIZER_OPENAI_*</code> in <code>backend/.env</code>, then restart the agent.</span>
+                  </div>
+                }
+                @case ('failed') {
+                  <div class="alert warn">{{ answerText(run) || 'The request had no data to answer from.' }}</div>
+                }
+                @default {
+                  <div class="markdown" [innerHTML]="answerHtml(run)"></div>
+                }
+              }
+            </section>
+
+            <!-- sources -->
+            @if (sourcesOf(run).length) {
+              <section class="block">
+                <span class="eyebrow">Sources · {{ sourcesOf(run).length }}</span>
+                <ol class="sources">
+                  @for (s of sourcesOf(run); track s.url; let i = $index) {
+                    <li>
+                      <span class="source-num">{{ i + 1 }}</span>
+                      <a [href]="s.url" target="_blank" rel="noopener" [title]="s.url">
+                        <span class="source-site">{{ s.site }}</span>
+                        <span class="source-url">{{ s.url }}</span>
+                      </a>
+                    </li>
+                  }
+                </ol>
+              </section>
             }
 
-            @if (isOpen(run)) {
-              <div class="details">
-                <section>
-                  <span class="eyebrow">Data received</span>
+            <!-- behind the scenes -->
+            <section class="block">
+              <div class="tabs" role="tablist" aria-label="Request details">
+                <button type="button" role="tab" [attr.aria-selected]="detailTab() === 'data'" [class.on]="detailTab() === 'data'"
+                  (click)="detailTab.set('data')">Data received <span class="count">{{ inputsOf(run).length }}</span></button>
+                <button type="button" role="tab" [attr.aria-selected]="detailTab() === 'prompt'" [class.on]="detailTab() === 'prompt'"
+                  (click)="detailTab.set('prompt')">Prompt</button>
+                <button type="button" role="tab" [attr.aria-selected]="detailTab() === 'raw'" [class.on]="detailTab() === 'raw'"
+                  (click)="detailTab.set('raw')">Raw JSON</button>
+              </div>
+
+              @switch (detailTab()) {
+                @case ('data') {
                   @for (input of inputsOf(run); track input.name) {
                     <div class="data-block">
                       <div class="data-head">
@@ -137,6 +281,7 @@
                         @if (input.status) {
                           <span class="badge" [class]="input.status === 'ok' ? 'success' : 'error'">{{ input.status }}</span>
                         }
+                        @if (input.items.length) { <span class="muted small">{{ input.items.length }} items</span> }
                       </div>
                       @if (input.text) {
                         <p class="data-text" [class.clamp]="isLong(input.text) && !isExpanded(run, input.name, -1)">{{ input.text }}</p>
@@ -159,9 +304,7 @@
                                     } @else {
                                       <span class="item-title">{{ item.title }}</span>
                                     }
-                                    @if (item.site) {
-                                      <span class="item-site">{{ item.site }}</span>
-                                    }
+                                    @if (item.site) { <span class="item-site">{{ item.site }}</span> }
                                   </div>
                                 }
                                 @if (item.text) {
@@ -181,47 +324,66 @@
                   } @empty {
                     <p class="muted small">No data was sent with this request.</p>
                   }
-                </section>
+                }
+                @case ('prompt') {
+                  @switch (promptOf(run)) {
+                    @case (undefined) { <p class="muted small">Loading…</p> }
+                    @case (null) { <p class="muted small">No prompt: no LLM is configured, or there was no data.</p> }
+                    @default {
+                      <div class="code-wrap">
+                        <button type="button" class="btn small copy-code" (click)="copyText(promptOf(run) ?? '', 'Prompt')">Copy</button>
+                        <pre class="code">{{ promptOf(run) }}</pre>
+                      </div>
+                    }
+                  }
+                }
+                @case ('raw') {
+                  <div class="code-wrap">
+                    <button type="button" class="btn small copy-code" (click)="copyText(rawOf(run), 'JSON')">Copy</button>
+                    <pre class="code">{{ rawOf(run) }}</pre>
+                  </div>
+                }
+              }
 
-                <section>
-                  <span class="eyebrow">Behind the scenes</span>
-                  <dl class="facts">
-                    <dt>LLM</dt>
-                    <dd>{{ run.llm ? run.llm.model + ' · ' + run.llm.base_url : "None configured (answer = the data's summaries)" }}</dd>
-                    <dt>Received on</dt>
-                    <dd class="mono">{{ run.endpoint ?? 'POST /synthesize' }}</dd>
-                    <dt>Received</dt>
-                    <dd>{{ run.received_at | date: 'medium' }}</dd>
-                    <dt>Time taken</dt>
-                    <dd>{{ run.seconds != null ? run.seconds + ' s' : '–' }}</dd>
-                  </dl>
-                  <details>
-                    <summary>Prompt sent to the LLM</summary>
-                    @switch (promptOf(run)) {
-                      @case (undefined) { <p class="muted small">Loading…</p> }
-                      @case (null) { <p class="muted small">No prompt: no LLM is configured, or there was no data.</p> }
-                      @default { <pre class="mono">{{ promptOf(run) }}</pre> }
-                    }
-                  </details>
-                  <details>
-                    <summary>Raw data</summary>
-                    @for (input of inputsOf(run); track input.name) {
-                      <pre class="mono">{{ input.name }}: {{ input.raw }}</pre>
-                    }
-                  </details>
-                </section>
-              </div>
-            }
-          </div>
+              <dl class="facts">
+                <dt>LLM</dt>
+                <dd>{{ run.llm ? run.llm.model + ' · ' + run.llm.base_url : "None configured (answer = the data's summaries)" }}</dd>
+                <dt>Run ID</dt>
+                <dd class="mono">{{ run.id }}</dd>
+                <dt>Finished</dt>
+                <dd>{{ run.finished_at ? (run.finished_at | date: 'MMM d, HH:mm:ss') : '–' }}</dd>
+              </dl>
+            </section>
+          </main>
+        }
+      </div>
+    } @else if (online() !== null) {
+      <!-- ================= EMPTY STATE ================= -->
+      <section class="panel empty">
+        <span class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2" />
+            <path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z" /></svg>
+        </span>
+        <h2>No requests yet</h2>
+        <p class="muted">Other agents send their results to <code>{{ endpoint() || '…' }}</code>. Answers show up here live.</p>
+        <div class="code-wrap example">
+          <button type="button" class="btn small copy-code" (click)="copyText(exampleCommand(), 'Command')">Copy</button>
+          <pre class="code">{{ exampleCommand() }}</pre>
         </div>
-      </article>
+        <ol class="how">
+          @for (step of howItWorks; track step.title; let i = $index) {
+            <li><span class="how-num">{{ i + 1 }}</span><b>{{ step.title }}</b><span class="muted">{{ step.text }}</span></li>
+          }
+        </ol>
+      </section>
     }
-  </main>
+  </div>
 
-  @if (notice()) {
-    <div class="toast" role="alert">
-      <span>{{ notice() }}</span>
-      <button type="button" class="icon-btn" (click)="notice.set('')" aria-label="Dismiss">✕</button>
+  @if (toast(); as t) {
+    <div class="toast" [class]="t.kind" role="status">
+      <span>{{ t.text }}</span>
+      <button type="button" class="icon-btn" (click)="toast.set(null)" aria-label="Dismiss">✕</button>
     </div>
   }
 </div>
