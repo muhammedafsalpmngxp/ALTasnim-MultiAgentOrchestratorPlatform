@@ -55,10 +55,11 @@ npm install
 npm start
 ```
 
-`npm start` runs all 8 dev servers. Open http://localhost:4200.
+`npm start` runs all 10 dev servers. Open http://localhost:4200.
 The backend must be running (`cd backend; docker compose up`, or `langgraph dev` per agent).
 
-Run a single app on its own (e.g. while a team works on its agent UI): `npm run start:communication-ui` → http://localhost:4302
+Run a single app on its own (e.g. while a team works on its agent UI): `npm run start:communication-ui` → http://localhost:4302.
+To start your agent's container and its UI together, run `node dev.mjs <agent>` from the repo root (see the root README).
 
 Production build of all apps into `dist/`:
 

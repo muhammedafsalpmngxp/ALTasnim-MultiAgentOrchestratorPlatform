@@ -4,10 +4,10 @@ import { agentApiUrl } from '@altasnim/shared';
 import { AgentCard, Run } from './synthesizer.models';
 
 /** Port the agent listens on (SYNTHESIZER_PORT in backend/.env). Keep in sync with proxy.conf.json. */
-const AGENT_PORT = 8203;
+const AGENT_PORT = 8204;
 
 /**
- * Talks to the Synthesizer agent through the team proxy: /api/agents/synthesizer -> :8203
+ * Talks to the Synthesizer agent through the team proxy: /api/agents/synthesizer -> :8204
  * (dev: proxy.conf.json, prod: API gateway). Same origin, so no CORS is needed.
  *
  * Uses fetch instead of HttpClient on purpose: a remote cannot count on the shell's providers.
@@ -16,7 +16,7 @@ const AGENT_PORT = 8203;
 export class SynthesizerService {
   private readonly base = agentApiUrl('synthesizer');
 
-  /** Where other agents send their data (shown on the page), e.g. http://192.168.1.33:8203 */
+  /** Where other agents send their data (shown on the page), e.g. http://192.168.1.33:8204 */
   async apiUrl(): Promise<string> {
     return `${location.protocol}//${location.hostname}:${AGENT_PORT}`;
   }

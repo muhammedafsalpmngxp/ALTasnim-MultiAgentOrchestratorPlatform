@@ -20,7 +20,7 @@
     "pathRewrite": { "^/api/agents/verifier": "" }
   },
   "/api/agents/synthesizer": {
-    "target": "http://127.0.0.1:8203",
+    "target": "http://127.0.0.1:8204",
     "changeOrigin": true,
     "pathRewrite": { "^/api/agents/synthesizer": "" }
   },

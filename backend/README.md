@@ -113,7 +113,8 @@ docker compose logs -f communication-agent
 docker compose down
 ```
 
-After changing code or `requirements.txt`, run step 2 again (`--build` rebuilds the images).
+Only your agent: `docker compose up -d --build <service>` (e.g. `verifier-agent`), or `node dev.mjs <agent>` from the
+repo root, which also serves its UI. After changing code or `requirements.txt`, run step 2 again (`--build` rebuilds the images).
 Add `--profile mail` in step 2 to also start Mailpit (set `EMAIL_CHANNEL=smtp` in `.env`; inbox at http://localhost:8025).
 
 Notes:

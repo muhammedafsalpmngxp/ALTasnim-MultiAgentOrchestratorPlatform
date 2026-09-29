@@ -36,6 +36,7 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── communication-agent/ :8202  draft → human approval (interrupt) → send
 │   ├── verifier-agent/      :8203  parallel checks → verdict
 │   │   (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
+│   ├── Synthesizer-agent/   :8204  FastAPI: POST /synthesize (question + inputs) → the final answer (LLM)
 │   └── Rag-agent/           :8000  FastAPI: ingest files → hybrid (dense + sparse) retrieval + rerank
 │                                   (own docker-compose.yml with Qdrant; not a LangGraph deployment yet)
 │
@@ -48,16 +49,49 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── agents/*-ui/      :4301-4305  one UI per agent (owned by the agent's team)
 │   └── libs/shared/                @altasnim/shared: LangGraph SDK client, flow diagram, shared UI
 │
+├── dev.mjs                         node dev.mjs <agent>: start only your agent (container + its UI)
 └── .github/                        CODEOWNERS (one owner per agent: backend + UI folder), CI workflows
 ```
 
 Details: [backend/README.md](backend/README.md) · [frontend/README.md](frontend/README.md)
 
-## Quick start
+## Work on your agent
+
+Everyone works on the `pro` branch, each person in their own agent's folders (see [Team ownership](#team-ownership)).
+Each agent is its own container and its own micro-frontend, so you start **only yours**. From the repo root:
+
+```powershell
+git switch pro
+git pull
+node dev.mjs rag
+```
+
+This builds and starts only that agent's container(s), then serves only its UI on its own port. `Ctrl+C` stops the UI,
+and the container keeps running. The first run creates `backend/.env` from `.env.example` and runs `npm install`.
+
+| Agent | Command | Container (API) | UI |
+|---|---|---|---|
+| Web search | `node dev.mjs web-search` | `web-search-agent` :8201 | `web-search-ui` http://localhost:4301 |
+| Communication | `node dev.mjs communication` | `communication-agent` :8202 | `communication-ui` http://localhost:4302 |
+| Verifier | `node dev.mjs verifier` | `verifier-agent` :8203 | `verifier-ui` http://localhost:4303 |
+| Synthesizer | `node dev.mjs synthesizer` | `synthesizer-agent` :8204 | `synthesizer-ui` http://localhost:4304 |
+| Rag | `node dev.mjs rag` | Rag-agent `api` :8000 + `qdrant` :6333 | `rag-ui` http://localhost:4305 |
+| Orchestrator (platform) | `node dev.mjs orchestrator` | `orchestrator-agent` :8100 (+ the 3 agents it calls) | shell, flow, runs, approvals, admin http://localhost:4200 |
+
+| Add | Does |
+|---|---|
+| `--shell` | also serves the shell, so you see your UI inside the platform at http://localhost:4200 (other sections show "unavailable") |
+| `--backend` | only rebuilds + restarts your container (after a backend code change; the UI keeps running) |
+| `--ui` | only serves your UI (the container is already running) |
+| `--stop` | stops your container(s) |
+
+`node dev.mjs` lists the agents. API ports are `<AGENT>_PORT` in `backend/.env`.
+
+## Run everything
 
 Prerequisites: Docker Desktop, Node.js 20+ (tested with 24). For local Python development: Python 3.11–3.13 (conda env).
 
-**1. Backend (4 agent deployments in Docker)**
+**1. Backend (every agent in Docker)**
 
 ```powershell
 cd backend
@@ -66,9 +100,10 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Wait until all 4 services show `healthy`.
+Wait until all services show `healthy`. Rag-agent has its own compose file (with Qdrant):
+`docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build`.
 
-**2. Frontend (8 micro-frontends)**, in a second terminal:
+**2. Frontend (every micro-frontend)**, in a second terminal:
 
 ```powershell
 cd frontend
@@ -101,6 +136,10 @@ Run one agent: `cd backend/web_search_agent` then `langgraph dev --port 8201`. S
 | Person B | `backend/communication-agent` | `frontend/agents/communication-ui` |
 | Person C | `backend/verifier-agent` | `frontend/agents/verifier-ui` |
 | Person D | `backend/Rag-agent` | `frontend/agents/rag-ui` |
+| Person E | `backend/Synthesizer-agent` | `frontend/agents/synthesizer-ui` |
+
+Only change your own folders. Shared files (`backend/.env.example`, `backend/requirements.txt`,
+`backend/docker-compose.yml`, `frontend/proxy.conf.json`, the shell) belong to the platform and frontend leads.
 
 Adding an agent: see the "Add an agent" sections in the backend and frontend READMEs. The supervisor and the flow
 diagram pick up new agents automatically.
@@ -109,8 +148,9 @@ diagram pick up new agents automatically.
 
 | Branch | Purpose |
 |---|---|
-| `dev-1.0` | active development (this code) |
-| `main` | releases (merge from `dev-1.0` by pull request) |
+| `pro` | the team's branch: everyone works here, each on their own agent |
+| `dev-1.0` | earlier development (merged into `pro`) |
+| `main` | releases (by pull request) |
 
 ## Status
 
