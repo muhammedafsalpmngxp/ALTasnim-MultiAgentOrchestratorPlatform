@@ -1,8 +1,34 @@
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject, signal } from '@angular/core';
 
 import { RagDocument, errorText, request, stream } from './api';
 import { ProgressSteps, Step, UPLOAD_STEPS, applyEvent, failSteps, seconds } from './progress';
 import { RetrievalChat } from './retrieval-chat';
+
+type Theme = 'light' | 'dark';
+const THEME_KEY = 'rag-ui.theme';
+
+/** The theme the user picked (remembered in this browser), or null to follow the system. */
+function pickedTheme(): Theme | null {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === 'light' || value === 'dark' ? value : null;
+  } catch {
+    return null; // storage blocked (private window, previews)
+  }
+}
+
+const systemDark = () => matchMedia('(prefers-color-scheme: dark)');
+
+/** During our theme switch only: replace the default cross-fade with the circular reveal (animated in code). */
+function ensureRevealStyle(): void {
+  if (document.getElementById('rag-theme-reveal')) return;
+  const style = document.createElement('style');
+  style.id = 'rag-theme-reveal';
+  style.textContent =
+    'html.rag-theme-reveal::view-transition-old(root), html.rag-theme-reveal::view-transition-new(root)' +
+    ' { animation: none; mix-blend-mode: normal; }';
+  document.head.append(style);
+}
 
 interface Upload {
   name: string;
@@ -14,20 +40,31 @@ interface Upload {
 
 /**
  * Rag-agent's own page, laid out like a chat app: a sidebar to ingest files and see what is indexed,
- * and the chat. Black on white (white on black in dark mode); the colors are scoped to this page.
+ * and the chat. Black on white, or white on black in dark mode (the button in the sidebar, else the system theme);
+ * the colors are scoped to this page.
  */
 @Component({
   selector: 'alt-ingestion-page',
   imports: [ProgressSteps, RetrievalChat],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="app">
+    <div class="app" [attr.data-theme]="theme()" [class.fading]="fading()">
       <aside class="sidebar">
         <div class="brand">
           <span class="logo">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" /></svg>
           </span>
           RAG
+          <button
+            class="theme"
+            type="button"
+            [title]="theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+            [attr.aria-label]="theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+            (click)="toggleTheme($event)"
+          >
+            <svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+            <svg class="moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13.2A8.5 8.5 0 1 1 10.8 3.5a6.6 6.6 0 0 0 9.7 9.7z" /></svg>
+          </button>
         </div>
 
         <button class="ingest" type="button" [disabled]="busy()" (click)="picker.click()">
@@ -111,7 +148,8 @@ interface Upload {
     </div>
   `,
   styles: `
-    :host {
+    :host { display: block; }
+    .app {
       --r-bg: #ffffff;
       --r-side: #f9f9f9;
       --r-text: #0d0d0d;
@@ -123,30 +161,43 @@ interface Upload {
       --r-accent: #0d0d0d;
       --r-on-accent: #ffffff;
       --r-danger: #d0342c;
-      display: block;
-      color: var(--r-text);
+      color-scheme: light;
+      display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100vh; height: 100dvh;
+      color: var(--r-text); background: var(--r-bg);
     }
-    @media (prefers-color-scheme: dark) {
-      :host {
-        --r-bg: #212121;
-        --r-side: #171717;
-        --r-text: #ececec;
-        --r-muted: #b4b4b4;
-        --r-faint: #8f8f8f;
-        --r-border: #383838;
-        --r-bubble: #303030;
-        --r-hover: #2a2a2a;
-        --r-accent: #ffffff;
-        --r-on-accent: #0d0d0d;
-        --r-danger: #f28b82;
-      }
+    .app[data-theme='dark'] {
+      --r-bg: #212121;
+      --r-side: #171717;
+      --r-text: #ececec;
+      --r-muted: #b4b4b4;
+      --r-faint: #8f8f8f;
+      --r-border: #383838;
+      --r-bubble: #303030;
+      --r-hover: #2a2a2a;
+      --r-accent: #ffffff;
+      --r-on-accent: #0d0d0d;
+      --r-danger: #f28b82;
+      color-scheme: dark;
     }
-    .app { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100vh; height: 100dvh; background: var(--r-bg); }
+    /* fallback where View Transitions are missing: every color fades to the new theme */
+    .app.fading, .app.fading * {
+      transition: background-color 0.45s ease, color 0.45s ease, border-color 0.45s ease, fill 0.45s ease, stroke 0.45s ease !important;
+    }
     .sidebar {
       display: flex; flex-direction: column; gap: 2px; min-height: 0;
       padding: 12px 10px 10px; background: var(--r-side); border-right: 1px solid var(--r-border);
     }
     .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
+    .theme {
+      position: relative; display: grid; place-items: center; width: 32px; height: 32px; margin-left: auto; overflow: hidden;
+      color: var(--r-text); background: var(--r-bg); border: 1px solid var(--r-border); border-radius: 50%; cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.15s ease;
+    }
+    .theme:hover { background: var(--r-hover); }
+    .theme:active { transform: scale(0.9); }
+    .theme svg { position: absolute; transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; }
+    .app[data-theme='light'] .moon { opacity: 0; transform: rotate(-120deg) scale(0.3); }
+    .app[data-theme='dark'] .sun { opacity: 0; transform: rotate(120deg) scale(0.3); }
     .logo { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--r-accent); color: var(--r-on-accent); }
     .ingest {
       display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px;
@@ -215,9 +266,63 @@ export class IngestionPage {
   protected readonly online = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly time = seconds;
+  protected readonly theme = signal<Theme>(pickedTheme() ?? (systemDark().matches ? 'dark' : 'light'));
+  protected readonly fading = signal(false);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private reveal?: ViewTransition; // the running theme switch
 
   constructor() {
     void this.load();
+    // until the user picks a theme, follow the system's
+    const media = systemDark();
+    const follow = (e: MediaQueryListEvent) => {
+      if (!pickedTheme()) this.theme.set(e.matches ? 'dark' : 'light');
+    };
+    media.addEventListener('change', follow);
+    inject(DestroyRef).onDestroy(() => media.removeEventListener('change', follow));
+  }
+
+  /**
+   * Light <-> dark, remembered in this browser. The new theme spreads as a circle from the button (View Transitions);
+   * browsers without them fade the colors instead, and "reduce motion" switches at once.
+   */
+  protected toggleTheme(event: MouseEvent): void {
+    const next: Theme = this.theme() === 'dark' ? 'light' : 'dark';
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // not remembered (storage blocked); the switch still works
+    }
+    const apply = () => {
+      this.theme.set(next);
+      this.cdr.detectChanges(); // the new snapshot must already show the new theme
+    };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return apply();
+    if (typeof document.startViewTransition !== 'function') {
+      this.fading.set(true);
+      apply();
+      setTimeout(() => this.fading.set(false), 500);
+      return;
+    }
+
+    const button = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = button.left + button.width / 2;
+    const y = button.top + button.height / 2;
+    const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    const root = document.documentElement;
+    ensureRevealStyle();
+    root.classList.add('rag-theme-reveal');
+    const transition = document.startViewTransition(apply); // a quick second click skips the running one
+    this.reveal = transition;
+    transition.ready.then(() =>
+      root.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+        { duration: 650, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', pseudoElement: '::view-transition-new(root)' },
+      ),
+    );
+    transition.finished.finally(() => {
+      if (this.reveal === transition) root.classList.remove('rag-theme-reveal');
+    });
   }
 
   /**
