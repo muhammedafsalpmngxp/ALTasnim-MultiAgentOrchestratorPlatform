@@ -47,6 +47,7 @@ delete the stored chunks and the model cache).
 | GET | `/documents/{document_id}/chunks` | A document's chunks, in order |
 | DELETE | `/documents/{document_id}` | Remove a document and its chunks |
 | POST | `/retrieve` | `{"question": "...", "top_k": 5}` → `{question, chunks, next_agents}` |
+| POST | `/documents/stream`, `/retrieve/stream` | Same as `/documents` and `/retrieve`, but report every step live as NDJSON lines: `{plan}`, then `{step, state: start / progress / done, detail, progress}`, then `{result}` (or a last `{error}`). The UI's animated progress uses them; the ranked chunks arrive before the next agents answer |
 | POST | `/next-agents/retry` | `{"endpoint": "8204/synthesize", "question", "chunks"}` → sends them again to that next agent (the UI's **Retry** button); one `next_agents` entry |
 | GET | `/health` | Liveness |
 

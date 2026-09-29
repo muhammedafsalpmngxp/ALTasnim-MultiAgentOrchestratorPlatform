@@ -5,17 +5,20 @@ POST /retrieve   question -> sparse + dense search -> fused (RRF) -> bge-reranke
                  -> POSTed as {question, chunks} to every next agent in RAG_NEXT_AGENTS (found on the LAN)
 POST /next-agents/retry  send {question, chunks} again to one of those next agents (e.g. after it failed)
 
+POST /documents/stream and /retrieve/stream do the same, reporting each step as it happens (NDJSON, for the UI).
 No LLM call: the next agents answer from the question and the reranked chunks.
 """
 
+import json
 import logging
 import uuid
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from qdrant_client.http.exceptions import ResponseHandlingException
 
@@ -24,6 +27,11 @@ from .config import parse_endpoints, settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("rag_agent")
+EMBED_SLICE = 16  # chunks embedded per progress step (= the model batch size, so no slower)
+
+
+def _count(n: int, word: str) -> str:
+    return f"{n:,} {word}{'' if n == 1 else 's'}"
 
 
 @asynccontextmanager
@@ -37,9 +45,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Rag-agent", description="Hybrid retrieval (dense + sparse) with reranking.", lifespan=lifespan)
 
 
+def _qdrant_detail() -> str:
+    return f"Qdrant unavailable at {settings.qdrant_url}"
+
+
 @app.exception_handler(ResponseHandlingException)
 async def _qdrant_unavailable(request: Request, exc: ResponseHandlingException) -> JSONResponse:
-    return JSONResponse(status_code=503, content={"detail": f"Qdrant unavailable at {settings.qdrant_url}"})
+    return JSONResponse(status_code=503, content={"detail": _qdrant_detail()})
 
 
 class RetrieveRequest(BaseModel):
@@ -53,22 +65,58 @@ class RetryRequest(BaseModel):
     chunks: list[dict]
 
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+# ------------------------------------------------------------------------------------------------ steps
+# Upload and retrieve are generators of step events, so the same code serves the JSON endpoints (run to the end)
+# and the /stream endpoints (every event sent as it happens):
+#   {"plan": [step ids]}                                   first: the steps this run will take
+#   {"step": id, "state": "start" | "progress" | "done", "detail"?: str, "progress"?: [done, total], ...}
+#   {"result": {...}}                                      last: what the JSON endpoint returns
+Steps = Iterator[dict]
 
 
-@app.post("/documents", status_code=201)
-def upload_document(file: UploadFile) -> dict:
-    name = file.filename or "upload"
-    data = file.file.read()
-    if len(data) > settings.max_upload_mb * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"File is larger than {settings.max_upload_mb} MB")
+def _run(steps: Steps) -> dict:
+    """The JSON endpoints: run all steps; errors raise as usual (HTTPException -> its status code)."""
+    result: dict = {}
+    for event in steps:
+        result = event.get("result", result)
+    return result
+
+
+def _stream(steps: Steps) -> StreamingResponse:
+    """The /stream endpoints: one JSON line per event. An error after the response started can't change the
+    status code, so it is the last line instead: {"error": {"status", "detail"}}."""
+
+    def lines() -> Iterator[str]:
+        try:
+            for event in steps:
+                yield json.dumps(event, default=str) + "\n"
+        except HTTPException as e:
+            yield json.dumps({"error": {"status": e.status_code, "detail": e.detail}}) + "\n"
+        except ResponseHandlingException:
+            yield json.dumps({"error": {"status": 503, "detail": _qdrant_detail()}}) + "\n"
+        except Exception:
+            log.exception("streamed request failed")
+            yield json.dumps({"error": {"status": 500, "detail": "Internal error (see the Rag-agent logs)"}}) + "\n"
+
+    # a sync iterator: Starlette runs it in a worker thread, so the model calls don't block other requests
+    return StreamingResponse(lines(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _upload_steps(name: str, data: bytes) -> Steps:
+    yield {"plan": ["read", "chunk", "embed", "store"]}
+
+    yield {"step": "read", "state": "start"}
     try:
         sections = parsing.extract_sections(name, data)
     except parsing.UnsupportedFileType as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
+    pages = sum(1 for page, _ in sections if page)
+    words = sum(len(text.split()) for _, text in sections)
+    detail = f"{_count(pages, 'page')} · {_count(words, 'word')}" if pages else _count(words, "word")
+    yield {"step": "read", "state": "done", "detail": detail}
 
+    yield {"step": "chunk", "state": "start"}
     chunks = [
         (page, chunk)
         for page, text in sections
@@ -76,12 +124,79 @@ def upload_document(file: UploadFile) -> dict:
     ]
     if not chunks:
         raise HTTPException(status_code=422, detail="No text found in the file (scanned PDFs need OCR, not supported)")
+    yield {"step": "chunk", "state": "done", "detail": _count(len(chunks), "chunk")}
 
-    embeddings = models.embed([text for _, text in chunks])
+    texts = [text for _, text in chunks]
+    yield {"step": "embed", "state": "start", "progress": [0, len(texts)]}
+    embeddings: list[models.Embedding] = []
+    for start in range(0, len(texts), EMBED_SLICE):
+        embeddings += models.embed(texts[start:start + EMBED_SLICE])
+        yield {"step": "embed", "state": "progress", "progress": [len(embeddings), len(texts)]}
+    yield {"step": "embed", "state": "done", "detail": _count(len(embeddings), "dense + sparse vector")}
+
+    yield {"step": "store", "state": "start"}
     document_id = str(uuid.uuid4())  # dashed form: Qdrant treats 32-hex strings as UUIDs and re-formats them
     store.add_chunks(document_id, name, chunks, embeddings)
+    yield {"step": "store", "state": "done", "detail": "saved in Qdrant"}
     log.info("indexed %s (%s): %d chunks", name, document_id, len(chunks))
-    return {"document_id": document_id, "document_name": name, "chunks": len(chunks)}
+    yield {"result": {"document_id": document_id, "document_name": name, "chunks": len(chunks)}}
+
+
+def _retrieve_steps(req: RetrieveRequest) -> Steps:
+    yield {"plan": ["embed", "search", "rerank"] + (["send"] if settings.next_agents else [])}
+
+    yield {"step": "embed", "state": "start"}
+    query = models.embed([req.question])[0]
+    yield {"step": "embed", "state": "done", "detail": "dense + sparse"}
+
+    yield {"step": "search", "state": "start"}
+    candidates = store.hybrid_search(query, settings.candidates)
+    yield {"step": "search", "state": "done", "detail": _count(len(candidates), "candidate")}
+
+    yield {"step": "rerank", "state": "start"}
+    if candidates:
+        scores = models.rerank(req.question, [c["content"] for c in candidates])
+        for candidate, score in zip(candidates, scores, strict=True):
+            candidate["score"] = round(score, 4)
+        candidates.sort(key=lambda c: c["score"], reverse=True)
+    chunks = candidates[:req.top_k]
+    log.info("retrieve %r: %d candidates -> %d chunks", req.question[:80], len(candidates), len(chunks))
+    # the chunks go out now, so the UI shows the sources while the next agents are still answering
+    yield {"step": "rerank", "state": "done", "detail": f"top {len(chunks)}", "chunks": chunks}
+
+    result = {"question": req.question, "chunks": chunks}
+    next_agents: list[dict] = []
+    if settings.next_agents:
+        endpoints = ", ".join(f"{port}{path}" for port, path in settings.next_agents)
+        yield {"step": "send", "state": "start", "detail": endpoints}
+        next_agents = _pass_to_next_agents(result)
+        answered = sum("error" not in n for n in next_agents)
+        yield {"step": "send", "state": "done", "detail": f"{answered} of {len(next_agents)} answered"}
+    yield {"result": {**result, "next_agents": next_agents}}
+
+
+def _read_upload(file: UploadFile) -> tuple[str, bytes]:
+    data = file.file.read()
+    if len(data) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File is larger than {settings.max_upload_mb} MB")
+    return file.filename or "upload", data
+
+
+# ------------------------------------------------------------------------------------------------ routes
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
+@app.post("/documents", status_code=201)
+def upload_document(file: UploadFile) -> dict:
+    return _run(_upload_steps(*_read_upload(file)))
+
+
+@app.post("/documents/stream")
+def upload_document_stream(file: UploadFile) -> StreamingResponse:
+    """Same as POST /documents, as NDJSON step events (read, chunk, embed with progress, store) + the result."""
+    return _stream(_upload_steps(*_read_upload(file)))
 
 
 @app.get("/documents")
@@ -145,16 +260,13 @@ def retrieve(req: RetrieveRequest) -> dict:
     """Returns {"question", "chunks": [{id, document_id, document_name, chunk_index, page, content, score}],
     "next_agents": [{endpoint, url, status, response} | {endpoint, url, error}, ...]}. Chunks are best
     first; score is the reranker's relevance (0..1). {question, chunks} is what the next agents receive."""
-    candidates = store.hybrid_search(models.embed([req.question])[0], settings.candidates)
-    if candidates:
-        scores = models.rerank(req.question, [c["content"] for c in candidates])
-        for candidate, score in zip(candidates, scores, strict=True):
-            candidate["score"] = round(score, 4)
-        candidates.sort(key=lambda c: c["score"], reverse=True)
-    chunks = candidates[:req.top_k]
-    log.info("retrieve %r: %d candidates -> %d chunks", req.question[:80], len(candidates), len(chunks))
-    result = {"question": req.question, "chunks": chunks}
-    return {**result, "next_agents": _pass_to_next_agents(result)}
+    return _run(_retrieve_steps(req))
+
+
+@app.post("/retrieve/stream")
+def retrieve_stream(req: RetrieveRequest) -> StreamingResponse:
+    """Same as POST /retrieve, as NDJSON step events (embed, search, rerank with the chunks, send) + the result."""
+    return _stream(_retrieve_steps(req))
 
 
 @app.post("/next-agents/retry")

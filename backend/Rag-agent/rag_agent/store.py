@@ -74,9 +74,12 @@ def list_documents() -> list[dict]:
         return []
     docs = []
     for hit in client().facet(settings.qdrant_collection, key="document_id", limit=10000, exact=True).hits:
-        [first], _ = client().scroll(settings.qdrant_collection, scroll_filter=_of_document(hit.value), limit=1,
-                                     with_payload=["document_name"])
-        docs.append({"document_id": hit.value, "document_name": first.payload["document_name"], "chunks": hit.count})
+        points, _ = client().scroll(settings.qdrant_collection, scroll_filter=_of_document(hit.value), limit=1,
+                                    with_payload=["document_name"])
+        if not hit.count or not points:  # a deleted document stays in the facet index (count 0) for a while
+            continue
+        name = points[0].payload["document_name"]
+        docs.append({"document_id": hit.value, "document_name": name, "chunks": hit.count})
     return docs
 
 
