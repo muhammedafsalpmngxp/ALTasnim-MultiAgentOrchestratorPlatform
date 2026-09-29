@@ -1,5 +1,15 @@
 import { JsonPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, ElementRef, input, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 
 import { NextAgentResult, RetrievedChunk, RetrieveResponse, errorText, request, stream } from './api';
 import { markdownToHtml } from './format';
@@ -54,8 +64,8 @@ function answerText(response: unknown): string | null {
         }
       </header>
 
-      <div class="scroll" #log>
-        <div class="thread">
+      <div class="scroll" #log (scroll)="follow()">
+        <div class="thread" #thread>
           @for (t of turns(); track $index; let ti = $index) {
             <div class="user"><div class="bubble">{{ t.question }}</div></div>
 
@@ -204,7 +214,11 @@ function answerText(response: unknown): string | null {
     .title { font-size: 16px; font-weight: 600; }
     .sub { font-size: 13px; color: var(--r-faint); }
     .new { margin-left: auto; }
-    .scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--r-border) transparent; }
+    .scroll {
+      flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto;
+      scrollbar-gutter: stable both-edges; /* a scrollbar coming or going never shifts the chat sideways */
+      scrollbar-width: thin; scrollbar-color: var(--r-border) transparent;
+    }
     .thread { display: flex; flex-direction: column; gap: 28px; max-width: 768px; margin: 0 auto; padding: 8px 24px 32px; }
 
     .user { display: flex; justify-content: flex-end; }
@@ -245,7 +259,7 @@ function answerText(response: unknown): string | null {
     .raw summary::-webkit-details-marker { display: none; }
     .raw pre {
       max-height: 16em; overflow: auto; margin: 8px 0 0; padding: 12px; border-radius: 10px;
-      background: var(--r-bubble); color: var(--r-text); white-space: pre-wrap;
+      background: var(--r-bubble); color: var(--r-text); white-space: pre-wrap; overflow-wrap: anywhere;
     }
     .raw[open] { flex-basis: 100%; }
 
@@ -274,7 +288,7 @@ function answerText(response: unknown): string | null {
     }
     .doc-name { font-weight: 600; color: var(--r-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .score { margin-left: auto; white-space: nowrap; }
-    .source-text { max-height: 10.5em; overflow-y: auto; margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--r-muted); white-space: pre-wrap; }
+    .source-text { max-height: 10.5em; overflow-y: auto; margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--r-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 
     .thinking { display: flex; align-items: center; gap: 5px; color: var(--r-faint); font-size: 14px; }
     .thinking span { width: 7px; height: 7px; border-radius: 50%; background: var(--r-text); animation: pulse 1.2s infinite ease-in-out; }
@@ -338,7 +352,28 @@ export class RetrievalChat {
   protected readonly html = markdownToHtml;
   protected readonly time = seconds;
   private readonly log = viewChild<ElementRef<HTMLElement>>('log');
+  private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
   private readonly box = viewChild<ElementRef<HTMLTextAreaElement>>('box');
+  private pinned = true; // the view is at the bottom, so it follows new content
+
+  constructor() {
+    // While the view is at the bottom, keep it there as the steps run, fold away and the answer arrives
+    // (every frame of their animations), and when the composer grows. Scrolling up stops following.
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      const observer = new ResizeObserver(() => {
+        if (this.pinned) this.toBottom();
+      });
+      observer.observe(this.thread()!.nativeElement);
+      observer.observe(this.log()!.nativeElement);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
+  }
+
+  protected follow(): void {
+    const el = this.log()!.nativeElement;
+    this.pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }
 
   protected async send(): Promise<void> {
     const question = this.draft().trim();
@@ -361,7 +396,6 @@ export class RetrievalChat {
             steps: applyEvent(t.steps ?? [], event, RETRIEVE_STEPS),
             ...(event.chunks ? { chunks: event.chunks } : {}),
           }));
-          if (event.chunks) this.scrollToEnd();
         },
       );
       this.patch(turn, (t) => ({ ...t, chunks: res.chunks, next: res.next_agents, done: true, ms: performance.now() - started }));
@@ -371,7 +405,6 @@ export class RetrievalChat {
       this.patch(turn, (t) => ({ ...t, error, steps: failSteps(t.steps ?? [], error), done: true, showSteps: true, ms }));
     }
     this.busy.set(false);
-    this.scrollToEnd();
   }
 
   protected ask(question: string): void {
@@ -458,10 +491,14 @@ export class RetrievalChat {
     });
   }
 
+  /** A new question: jump to it and follow again. */
   private scrollToEnd(): void {
-    setTimeout(() => {
-      const el = this.log()?.nativeElement;
-      if (el) el.scrollTop = el.scrollHeight;
-    });
+    this.pinned = true;
+    setTimeout(() => this.toBottom());
+  }
+
+  private toBottom(): void {
+    const el = this.log()?.nativeElement;
+    if (el) el.scrollTop = el.scrollHeight;
   }
 }

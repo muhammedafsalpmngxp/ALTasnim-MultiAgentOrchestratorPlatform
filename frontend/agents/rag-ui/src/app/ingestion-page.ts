@@ -86,30 +86,32 @@ interface Upload {
               </button>
             }
           </div>
-          @for (u of uploads(); track $index) {
-            <div class="upload" [attr.data-state]="u.state">
-              <div class="upload-head">
-                @switch (u.state) {
-                  @case ('waiting') { <span class="queued"></span> }
-                  @case ('uploading') { <span class="spinner"></span> }
-                  @case ('done') {
-                    <svg class="ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7" /></svg>
+          <div class="uploads">
+            @for (u of uploads(); track $index) {
+              <div class="upload" [attr.data-state]="u.state">
+                <div class="upload-head">
+                  @switch (u.state) {
+                    @case ('waiting') { <span class="queued"></span> }
+                    @case ('uploading') { <span class="spinner"></span> }
+                    @case ('done') {
+                      <svg class="ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7" /></svg>
+                    }
+                    @case ('error') {
+                      <svg class="warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
+                    }
                   }
-                  @case ('error') {
-                    <svg class="warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
+                  <div class="name" [title]="u.name">{{ u.name }}</div>
+                  @if (u.ms != null) {
+                    <span class="time">{{ time(u.ms) }}</span>
                   }
-                }
-                <div class="name" [title]="u.name">{{ u.name }}</div>
-                @if (u.ms != null) {
-                  <span class="time">{{ time(u.ms) }}</span>
+                </div>
+                <alt-progress-steps [steps]="u.steps" [compact]="true" [open]="u.state === 'uploading' || (u.state === 'error' && !!u.steps.length)" />
+                @if (u.state === 'waiting' || u.state === 'done' || (u.state === 'error' && !u.steps.length)) {
+                  <div class="detail">{{ u.state === 'waiting' ? 'Waiting…' : u.detail }}</div>
                 }
               </div>
-              <alt-progress-steps [steps]="u.steps" [compact]="true" [open]="u.state === 'uploading' || (u.state === 'error' && !!u.steps.length)" />
-              @if (u.state === 'waiting' || u.state === 'done' || (u.state === 'error' && !u.steps.length)) {
-                <div class="detail">{{ u.state === 'waiting' ? 'Waiting…' : u.detail }}</div>
-              }
-            </div>
-          }
+            }
+          </div>
         }
 
         <div class="label">
@@ -164,6 +166,7 @@ interface Upload {
       color-scheme: light;
       display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100vh; height: 100dvh;
       color: var(--r-text); background: var(--r-bg);
+      overflow: hidden; /* the page itself never scrolls: the chat and the lists do */
     }
     .app[data-theme='dark'] {
       --r-bg: #212121;
@@ -186,6 +189,7 @@ interface Upload {
     .sidebar {
       display: flex; flex-direction: column; gap: 2px; min-height: 0;
       padding: 12px 10px 10px; background: var(--r-side); border-right: 1px solid var(--r-border);
+      overflow: hidden; /* never spills over the chat: the uploads and documents lists scroll instead */
     }
     .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
     .theme {
@@ -210,7 +214,14 @@ interface Upload {
       display: flex; align-items: center; justify-content: space-between; min-height: 26px;
       padding: 14px 10px 4px; font-size: 12px; font-weight: 600; color: var(--r-faint);
     }
-    .docs { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; scrollbar-width: thin; scrollbar-color: var(--r-border) transparent; }
+    /* scrollbar-gutter: a scrollbar coming or going (e.g. while an upload card unfolds) never shifts the rows; the
+       gutter takes the place of the sidebar's right padding */
+    .docs, .uploads {
+      min-height: 0; overflow-x: hidden; overflow-y: auto; margin-right: -10px;
+      scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--r-border) transparent;
+    }
+    .docs { flex: 1; min-height: 38px; display: flex; flex-direction: column; gap: 1px; } /* at least one row */
+    .uploads { flex: 0 1 auto; max-height: 45vh; margin-left: -10px; padding: 0 0 6px 10px; }
     .doc { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 10px; border-radius: 8px; font-size: 14px; color: var(--r-text); }
     .doc:hover { background: var(--r-hover); }
     .doc > svg { flex: none; color: var(--r-muted); }

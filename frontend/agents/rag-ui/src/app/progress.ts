@@ -105,9 +105,13 @@ export function seconds(ms: number | undefined): string {
     </div>
   `,
   styles: `
-    :host { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.45s ease, opacity 0.35s ease; }
-    :host(.open) { grid-template-rows: 1fr; opacity: 1; }
-    .inner { min-height: 0; overflow: hidden; }
+    :host {
+      display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+      transition: grid-template-rows 0.45s ease, opacity 0.35s ease, visibility 0s linear 0.45s;
+    }
+    :host(.open) { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
+    /* clips while folding; the 8px of room lets the spinner, its glow and the pop never be cut off */
+    .inner { min-height: 0; overflow: hidden; margin: -8px; padding: 8px; }
     ol { list-style: none; margin: 0; padding: 2px 0 0; }
     li { display: flex; gap: 12px; animation: rise 0.4s ease both; }
 
