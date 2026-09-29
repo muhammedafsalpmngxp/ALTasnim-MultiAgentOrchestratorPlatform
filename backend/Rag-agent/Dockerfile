@@ -16,5 +16,6 @@ COPY rag_agent ./rag_agent
 EXPOSE 8000
 # The models load at startup (~30 s from the cache, longer on the very first run while they download)
 HEALTHCHECK --interval=15s --timeout=5s --start-period=120s --retries=5 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"
-CMD ["uvicorn", "rag_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('RAG_PORT', '8000') + '/health', timeout=4)"
+# Listens on RAG_PORT (backend/.env), default 8000
+CMD ["sh", "-c", "exec uvicorn rag_agent.main:app --host 0.0.0.0 --port ${RAG_PORT:-8000}"]

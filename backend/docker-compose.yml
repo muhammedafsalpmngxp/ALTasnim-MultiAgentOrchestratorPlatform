@@ -1,10 +1,11 @@
 # All agent deployments, each in its own container and port.
 #
 #   cd backend
-#   docker compose up --build              # orchestrator :8100, agents :8201-8204
+#   docker compose up --build              # ports: <AGENT>_PORT in backend/.env (8100, 8201-8204)
 #   docker compose --profile mail up       # + Mailpit (EMAIL_CHANNEL=smtp), UI http://localhost:8025
 #
-# Configuration comes from backend/.env. Values under `environment:` override it.
+# Configuration comes from the one backend/.env (all agents; template .env.example). Values under
+# `environment:` override it. The Rag agent has its own compose (Rag-agent/docker-compose.yml), same .env.
 name: altasnim-agents
 
 x-agent: &agent
@@ -18,12 +19,9 @@ services:
     <<: *agent
     build: { context: ., dockerfile: web_search_agent/Dockerfile }
     image: altasnim/web-search-agent
-    ports: ["8201:8201"]
-    env_file:  # backend/.env, then the agent's own .env (wins)
-      - path: .env
-        required: false
-      - path: web_search_agent/.env
-        required: false
+    ports: ["${WEB_SEARCH_PORT:-8201}:${WEB_SEARCH_PORT:-8201}"]
+    environment:
+      WEB_SEARCH_PORT: ${WEB_SEARCH_PORT:-8201}   # listen port = mapped port
     volumes:
       - ./web_search_agent/models:/app/web_search_agent/models   # the reranker, downloaded once
       - ./web_search_agent/logs:/app/web_search_agent/logs       # saved runs for Retry
@@ -31,32 +29,36 @@ services:
   communication-agent:
     <<: *agent
     build: { context: ., dockerfile: communication-agent/Dockerfile }
-    ports: ["8202:8202"]
+    ports: ["${COMMUNICATION_PORT:-8202}:${COMMUNICATION_PORT:-8202}"]
     environment:
+      COMMUNICATION_PORT: ${COMMUNICATION_PORT:-8202}
       EMAIL_SMTP_HOST: mailpit
 
   verifier-agent:
     <<: *agent
     build: { context: ., dockerfile: verifier-agent/Dockerfile }
-    ports: ["8203:8203"]
+    ports: ["${VERIFIER_PORT:-8203}:${VERIFIER_PORT:-8203}"]
+    environment:
+      VERIFIER_PORT: ${VERIFIER_PORT:-8203}
 
   synthesizer-agent:
     <<: *agent
     build: { context: ./Synthesizer-agent }   # self-contained: only this agent's folder
-    ports: ["8204:8204"]
+    ports: ["${SYNTHESIZER_PORT:-8204}:${SYNTHESIZER_PORT:-8204}"]
     environment:
-      SYNTHESIZER_PORT: "8204"      # overrides backend/.env inside the container
+      SYNTHESIZER_PORT: ${SYNTHESIZER_PORT:-8204}
       SYNTHESIZER_RELOAD: "false"
 
   orchestrator-agent:
     <<: *agent
     build: { context: ., dockerfile: orchestrator-agent/Dockerfile }
-    ports: ["8100:8100"]
+    ports: ["${ORCHESTRATOR_PORT:-8100}:${ORCHESTRATOR_PORT:-8100}"]
     environment:
+      ORCHESTRATOR_PORT: ${ORCHESTRATOR_PORT:-8100}
       AGENT_TRANSPORT: remote
-      AGENT_WEB_SEARCH_URL: http://web-search-agent:8201
-      AGENT_COMMUNICATION_URL: http://communication-agent:8202
-      AGENT_VERIFIER_URL: http://verifier-agent:8203
+      AGENT_WEB_SEARCH_URL: http://web-search-agent:${WEB_SEARCH_PORT:-8201}
+      AGENT_COMMUNICATION_URL: http://communication-agent:${COMMUNICATION_PORT:-8202}
+      AGENT_VERIFIER_URL: http://verifier-agent:${VERIFIER_PORT:-8203}
     depends_on:
       web-search-agent: { condition: service_healthy }
       communication-agent: { condition: service_healthy }

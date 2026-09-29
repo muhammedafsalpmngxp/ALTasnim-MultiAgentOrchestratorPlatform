@@ -20,5 +20,6 @@ RUN pip install --no-deps -e .
 
 WORKDIR /app/orchestrator-agent
 EXPOSE 8100
-HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/ok', timeout=4)"
-CMD ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8100", "--no-browser", "--no-reload"]
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('ORCHESTRATOR_PORT', '8100') + '/ok', timeout=4)"
+# Listens on ORCHESTRATOR_PORT (backend/.env), default 8100
+CMD ["sh", "-c", "exec langgraph dev --host 0.0.0.0 --port ${ORCHESTRATOR_PORT:-8100} --no-browser --no-reload"]

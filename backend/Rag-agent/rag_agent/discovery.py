@@ -19,7 +19,7 @@ _found: dict[tuple[int, str], str] = {}  # (port, path) -> base URL, e.g. http:/
 
 
 def _subnets() -> list[ipaddress.IPv4Network]:
-    """NEXT_AGENT_SUBNET (comma-separated CIDRs), else this machine's own /24 (works outside Docker)."""
+    """RAG_NEXT_AGENT_SUBNET (comma-separated CIDRs), else this machine's own /24 (works outside Docker)."""
     if settings.next_agent_subnet:
         cidrs = [s.strip() for s in settings.next_agent_subnet.split(",") if s.strip()]
         return [ipaddress.ip_network(cidr, strict=False) for cidr in cidrs]

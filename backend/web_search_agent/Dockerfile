@@ -46,5 +46,6 @@ USER app
 WORKDIR /app/web_search_agent
 EXPOSE 8201
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=12 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8201/ok', timeout=4)"
-CMD ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8201", "--no-browser", "--no-reload"]
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('WEB_SEARCH_PORT', '8201') + '/ok', timeout=4)"
+# Listens on WEB_SEARCH_PORT (backend/.env), default 8201
+CMD ["sh", "-c", "exec langgraph dev --host 0.0.0.0 --port ${WEB_SEARCH_PORT:-8201} --no-browser --no-reload"]

@@ -17,8 +17,9 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-# backend/Synthesizer-agent/src/synthesizer_agent/agent.py -> parents[3] == backend/
-load_dotenv(Path(__file__).resolve().parents[3] / ".env", override=False)  # real env vars win
+# backend/Synthesizer-agent/src/synthesizer_agent/agent.py -> parents[3] == backend/. ENV_FILE points elsewhere, like
+# utils/env.py; tests set it to an empty file (backend/conftest.py) so they never use your keys.
+load_dotenv(Path(os.getenv("ENV_FILE", Path(__file__).resolve().parents[3] / ".env")), override=False)  # real env wins
 
 _PROMPTS = Path(__file__).parent / "prompts"
 _CITATION_RE = re.compile(r"\s*\[\d+(?:\s*[,-]\s*\d+)*\]")  # [1], [1, 2], [1-3]

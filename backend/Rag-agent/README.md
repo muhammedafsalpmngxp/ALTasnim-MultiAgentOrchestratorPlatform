@@ -11,7 +11,7 @@ UPLOAD    file ─► text (PDF text layer, DOCX, TXT/MD/CSV) ─► ~300-word c
 RETRIEVE  question ─► bge-m3 dense + sparse ─┬─► sparse search (keywords, top 20) ─┐  RRF fusion
                                              └─► dense search  (meaning,  top 20) ─┴─ in Qdrant (top 20)
                                                     ─► bge-reranker-v2-m3 ─► top_k chunks
-                                                    ─► POST {question, chunks} to each NEXT_AGENTS endpoint
+                                                    ─► POST {question, chunks} to each RAG_NEXT_AGENTS endpoint
 ```
 
 The sparse vector is bge-m3's lexical weights (a learned per-token keyword weight), so exact terms
@@ -24,10 +24,12 @@ Needs Docker Desktop (with the NVIDIA GPU enabled, or delete the `deploy:` block
 
 ```bash
 cd backend/Rag-agent
-docker compose up -d --build
+docker compose --env-file ../.env up -d --build
 ```
 
-- API + Swagger UI: http://localhost:8000/docs
+`--env-file ../.env` makes compose read the shared `backend/.env` (e.g. `RAG_PORT`) for the port mapping.
+
+- API + Swagger UI: http://localhost:8000/docs (port = `RAG_PORT` in `backend/.env`)
 - Qdrant dashboard (collection, points, vectors): http://localhost:6333/dashboard
 - UI: the **RAG** page in the platform frontend (`frontend/agents/rag-ui`, :4305): ingest files, and
   a chat window that shows the retrieved chunks and each next agent's reply
@@ -68,9 +70,9 @@ delete the stored chunks and the model cache).
 
 ## Next agents (automatic, no IPs)
 
-`NEXT_AGENTS` lists `PORT/PATH` endpoints, comma-separated (`8203/synthesize, 8210/answer`). Each
+`RAG_NEXT_AGENTS` lists `PORT/PATH` endpoints, comma-separated (`8203/synthesize, 8210/answer`). Each
 `/retrieve` POSTs `{"question": ..., "chunks": [...]}` to all of them in parallel. For each endpoint,
-Rag-agent scans `NEXT_AGENT_SUBNET` (e.g. `192.168.1.0/24`) for machines with the port open and uses
+Rag-agent scans `RAG_NEXT_AGENT_SUBNET` (e.g. `192.168.1.0/24`) for machines with the port open and uses
 the first whose `/openapi.json` lists the path. Other services on the same port (such as a teammate's
 verifier agent on 8203) are skipped, and no document data is sent while searching. The machine is
 remembered; if it stops answering it is searched again once. Inside Docker the container can't see the
@@ -81,10 +83,12 @@ There is no authentication: keep ports 8000 and 6333 on localhost or the interna
 
 ## Configuration
 
-Environment variables, all optional (see `.env.example`; copy it to `.env` to change them):
-`QDRANT_URL`, `QDRANT_COLLECTION`, `EMBEDDING_MODEL`, `RERANK_MODEL`, `CHUNK_WORDS`,
-`CHUNK_OVERLAP_WORDS`, `CANDIDATES` (hits per search, and sent to the reranker), `TOP_K`
-(default for `/retrieve`), `MAX_UPLOAD_MB`, `NEXT_AGENTS`, `NEXT_AGENT_SUBNET`, `NEXT_AGENT_TIMEOUT`.
+The `RAG_*` keys of the one shared `backend/.env` (template and descriptions: `backend/.env.example`, section
+`Rag-agent`), all optional: `RAG_QDRANT_URL`, `RAG_QDRANT_COLLECTION`, `RAG_EMBEDDING_MODEL`, `RAG_RERANK_MODEL`,
+`RAG_CHUNK_WORDS`, `RAG_CHUNK_OVERLAP_WORDS`, `RAG_CANDIDATES` (hits per search, and sent to the reranker),
+`RAG_TOP_K` (default for `/retrieve`), `RAG_MAX_UPLOAD_MB`, `RAG_NEXT_AGENTS`, `RAG_NEXT_AGENT_SUBNET`,
+`RAG_NEXT_AGENT_TIMEOUT`. `docker-compose.yml` passes `backend/.env` in; after editing, restart with
+`docker compose --env-file ../.env up -d`.
 
 ## Code
 

@@ -20,5 +20,6 @@ RUN pip install --no-deps -e .
 
 WORKDIR /app/verifier-agent
 EXPOSE 8203
-HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8203/ok', timeout=4)"
-CMD ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8203", "--no-browser", "--no-reload"]
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('VERIFIER_PORT', '8203') + '/ok', timeout=4)"
+# Listens on VERIFIER_PORT (backend/.env), default 8203
+CMD ["sh", "-c", "exec langgraph dev --host 0.0.0.0 --port ${VERIFIER_PORT:-8203} --no-browser --no-reload"]

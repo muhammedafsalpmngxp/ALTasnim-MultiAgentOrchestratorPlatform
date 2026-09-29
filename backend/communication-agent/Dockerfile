@@ -20,5 +20,6 @@ RUN pip install --no-deps -e .
 
 WORKDIR /app/communication-agent
 EXPOSE 8202
-HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8202/ok', timeout=4)"
-CMD ["langgraph", "dev", "--host", "0.0.0.0", "--port", "8202", "--no-browser", "--no-reload"]
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('COMMUNICATION_PORT', '8202') + '/ok', timeout=4)"
+# Listens on COMMUNICATION_PORT (backend/.env), default 8202
+CMD ["sh", "-c", "exec langgraph dev --host 0.0.0.0 --port ${COMMUNICATION_PORT:-8202} --no-browser --no-reload"]

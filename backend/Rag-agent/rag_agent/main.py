@@ -2,7 +2,7 @@
 
 POST /documents  upload a file -> text -> chunks -> bge-m3 dense + sparse vectors -> Qdrant
 POST /retrieve   question -> sparse + dense search -> fused (RRF) -> bge-reranker -> top chunks
-                 -> POSTed as {question, chunks} to every next agent in NEXT_AGENTS (found on the LAN)
+                 -> POSTed as {question, chunks} to every next agent in RAG_NEXT_AGENTS (found on the LAN)
 
 No LLM call: the next agents answer from the question and the reranked chunks.
 """
@@ -125,7 +125,7 @@ def _send(port: int, path: str, result: dict) -> dict:
 
 
 def _pass_to_next_agents(result: dict) -> list[dict]:
-    """Send to every NEXT_AGENTS endpoint in parallel; one result per endpoint, in config order.
+    """Send to every RAG_NEXT_AGENTS endpoint in parallel; one result per endpoint, in config order.
     A failing next agent never loses the retrieved chunks."""
     if not settings.next_agents:
         return []

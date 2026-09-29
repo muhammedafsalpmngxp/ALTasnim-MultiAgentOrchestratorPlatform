@@ -123,7 +123,8 @@ Notes:
 
 ## Run without Docker: each agent on its own port
 
-One terminal per agent (conda env active), from the agent's folder:
+Ports are the `<AGENT>_PORT` values in `backend/.env` (with Docker they are applied automatically; here pass the
+same port to `--port`). One terminal per agent (conda env active), from the agent's folder:
 
 ```powershell
 cd web_search_agent;    langgraph dev --port 8201 --no-browser

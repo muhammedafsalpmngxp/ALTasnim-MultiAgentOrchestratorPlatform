@@ -1,9 +1,12 @@
 # Rag-agent: Qdrant + the API.
 #
 #   cd backend/Rag-agent
-#   docker compose up -d --build
-#   open http://localhost:8000/docs           (API)
+#   docker compose --env-file ../.env up -d --build
+#   open http://localhost:8000/docs           (API; port = RAG_PORT in backend/.env)
 #   open http://localhost:6333/dashboard      (Qdrant UI: collection, points, vectors)
+#
+# `--env-file ../.env` lets compose read RAG_PORT from the shared backend/.env for the port mapping
+# (without it, both the mapping and the API use 8000). The container gets every key via env_file.
 #
 # The models (bge-m3, bge-reranker-v2-m3, ~4.5 GB) download on the first upload/question and are
 # cached in the `models` volume. They run on the NVIDIA GPU; on a machine without one, delete the
@@ -28,12 +31,13 @@ services:
   api:
     build: .
     env_file:
-      - path: .env
+      - path: ../.env  # the one shared backend/.env (RAG_* keys)
         required: false
     environment:
-      - QDRANT_URL=http://qdrant:6333
+      - RAG_QDRANT_URL=http://qdrant:6333
+      - RAG_PORT=${RAG_PORT:-8000}  # same value as the port mapping below, so they always match
     ports:
-      - "127.0.0.1:8000:8000"  # no auth: keep it on localhost / the internal network
+      - "127.0.0.1:${RAG_PORT:-8000}:${RAG_PORT:-8000}"  # no auth: keep it on localhost / the internal network
     extra_hosts:
       - "host.docker.internal:host-gateway"  # reach services on this PC, e.g. the next agent on :8203
     volumes:

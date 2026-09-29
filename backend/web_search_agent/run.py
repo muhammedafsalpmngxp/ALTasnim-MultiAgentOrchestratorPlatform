@@ -109,12 +109,13 @@ def ensure_frontend(install: bool) -> None:
 
 
 def check_env_file() -> None:
-    env_file = AGENT_DIR / ".env"
-    if env_file.is_file():
-        log("run", "Settings: backend/web_search_agent/.env")
+    if (AGENT_DIR / ".env").is_file():  # optional override, wins over backend/.env
+        log("run", "Settings: backend/web_search_agent/.env + backend/.env")
+    elif (BACKEND_DIR / ".env").is_file():
+        log("run", "Settings: backend/.env (section web_search_agent)")
     else:
-        log("run", "No backend/web_search_agent/.env - running with defaults (offline sample data). "
-                   "Create it:  copy .env.example .env", "warn")
+        log("run", "No backend/.env - running with defaults (offline sample data). "
+                   "Create it:  cd backend; copy .env.example .env", "warn")
 
 
 # --- processes ----------------------------------------------------------------------

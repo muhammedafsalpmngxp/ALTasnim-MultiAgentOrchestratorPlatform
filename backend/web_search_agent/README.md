@@ -57,7 +57,7 @@ Only the question and the top 3 contents (`WEB_SEARCH_RESULT_TOP_N`), plus the p
   The agent page's console shows the full run: all ranked evidence, sources, flow and timings (streamed; also in
   `/custom/history`, `/custom/sources`).
 
-## Where the output goes (`backend/web_search_agent/.env`)
+## Where the output goes (`backend/.env`)
 
 ```
 WEB_SEARCH_VERIFIER_PATH=/verify,/synthesize   # POST routes; empty = send nothing
@@ -130,19 +130,18 @@ on the result and in *Recent runs*, or `POST /custom/retry?trace_id=<id>` - send
 agents with that run: it rebuilds the top N contents (a changed `WEB_SEARCH_RESULT_TOP_N` applies) and sends them.
 No search, no page fetching, no reranking, no LLM call; works after a restart too.
 
-## Configuration (`backend/web_search_agent/.env`)
+## Configuration (`backend/.env`, section `web_search_agent`)
 
-This agent's own `.env` (git-ignored; template: `.env.example` next to it):
+All agents share one `.env` (git-ignored; template: `backend/.env.example`):
 
 ```powershell
-cd backend\web_search_agent
+cd backend
 copy .env.example .env
 ```
 
-Priority: real environment variables > `backend/web_search_agent/.env` > `backend/.env` (the platform's shared file,
-section `web-search-agent`, still works). The agent `.env` is not loaded under pytest, so tests never use your live
-keys or call the verifier machine. With Docker, both `.env` files are passed in by compose (`env_file`) - they are
-never copied into the image.
+Priority: real environment variables > `backend/web_search_agent/.env` (optional override, not needed) > `backend/.env`.
+Tests never use your live keys or call the verifier machine: `backend/conftest.py` removes every `WEB_SEARCH_*`
+variable for each test. With Docker, compose passes `backend/.env` in (`env_file`); it is never copied into the image.
 
 Every key starts with `WEB_SEARCH_` (see `settings.py`). Main ones:
 
