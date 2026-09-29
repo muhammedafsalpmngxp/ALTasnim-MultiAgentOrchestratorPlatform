@@ -47,6 +47,7 @@ delete the stored chunks and the model cache).
 | GET | `/documents/{document_id}/chunks` | A document's chunks, in order |
 | DELETE | `/documents/{document_id}` | Remove a document and its chunks |
 | POST | `/retrieve` | `{"question": "...", "top_k": 5}` → `{question, chunks, next_agents}` |
+| POST | `/next-agents/retry` | `{"endpoint": "8204/synthesize", "question", "chunks"}` → sends them again to that next agent (the UI's **Retry** button); one `next_agents` entry |
 | GET | `/health` | Liveness |
 
 `/retrieve` returns chunks best first, and what each next agent replied:

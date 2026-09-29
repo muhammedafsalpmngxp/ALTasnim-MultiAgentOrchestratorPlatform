@@ -3,6 +3,7 @@
 POST /documents  upload a file -> text -> chunks -> bge-m3 dense + sparse vectors -> Qdrant
 POST /retrieve   question -> sparse + dense search -> fused (RRF) -> bge-reranker -> top chunks
                  -> POSTed as {question, chunks} to every next agent in RAG_NEXT_AGENTS (found on the LAN)
+POST /next-agents/retry  send {question, chunks} again to one of those next agents (e.g. after it failed)
 
 No LLM call: the next agents answer from the question and the reranked chunks.
 """
@@ -19,7 +20,7 @@ from pydantic import BaseModel, Field
 from qdrant_client.http.exceptions import ResponseHandlingException
 
 from . import chunking, discovery, models, parsing, store
-from .config import settings
+from .config import parse_endpoints, settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("rag_agent")
@@ -44,6 +45,12 @@ async def _qdrant_unavailable(request: Request, exc: ResponseHandlingException) 
 class RetrieveRequest(BaseModel):
     question: str = Field(min_length=1)
     top_k: int = Field(default=settings.top_k, ge=1, le=50)
+
+
+class RetryRequest(BaseModel):
+    endpoint: str = Field(description="One of RAG_NEXT_AGENTS, e.g. 8204/synthesize")
+    question: str = Field(min_length=1)
+    chunks: list[dict]
 
 
 @app.get("/health")
@@ -148,3 +155,16 @@ def retrieve(req: RetrieveRequest) -> dict:
     log.info("retrieve %r: %d candidates -> %d chunks", req.question[:80], len(candidates), len(chunks))
     result = {"question": req.question, "chunks": chunks}
     return {**result, "next_agents": _pass_to_next_agents(result)}
+
+
+@app.post("/next-agents/retry")
+def retry_next_agent(req: RetryRequest) -> dict:
+    """POST {question, chunks} (as returned by /retrieve) again to one next agent; returns the same
+    {endpoint, url, status, response} | {endpoint, url, error} as /retrieve. Only RAG_NEXT_AGENTS endpoints."""
+    try:
+        (endpoint,) = parse_endpoints(req.endpoint)
+    except ValueError:  # not PORT/PATH, or not exactly one
+        endpoint = None
+    if endpoint not in settings.next_agents:
+        raise HTTPException(status_code=404, detail=f"{req.endpoint!r} is not in RAG_NEXT_AGENTS")
+    return _send(*endpoint, {"question": req.question, "chunks": req.chunks})

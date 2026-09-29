@@ -3,10 +3,12 @@ import { ChangeDetectionStrategy, Component, ElementRef, signal, viewChild } fro
 
 import { NextAgentResult, RetrievedChunk, RetrieveResponse, errorText, request } from './api';
 
+type NextResult = NextAgentResult & { retrying?: boolean };
+
 interface Turn {
   question: string;
   chunks?: RetrievedChunk[];
-  next?: NextAgentResult[];
+  next?: NextResult[];
   error?: string;
 }
 
@@ -21,7 +23,7 @@ interface Turn {
       <p class="muted">Shows the chunks retrieved for each question (hybrid search + rerank) and what the next agents did with them.</p>
 
       <div class="log" #log>
-        @for (t of turns(); track $index) {
+        @for (t of turns(); track $index; let ti = $index) {
           <div class="question">{{ t.question }}</div>
           @if (t.error) {
             <p class="error">{{ t.error }}</p>
@@ -45,7 +47,12 @@ interface Turn {
             }
             @for (n of t.next; track n.endpoint) {
               @if (n.error) {
-                <p class="error">{{ n.endpoint }} ({{ n.url ?? 'not found' }}) failed: {{ n.error }}</p>
+                <div class="failed">
+                  <p class="error">{{ n.endpoint }} ({{ n.url ?? 'not found' }}) failed: {{ n.error }}</p>
+                  <button class="btn btn-sm" type="button" [disabled]="n.retrying" (click)="retry(ti, n.endpoint)">
+                    {{ n.retrying ? 'Retrying…' : 'Retry' }}
+                  </button>
+                </div>
               } @else {
                 <details class="next">
                   <summary>Passed to {{ n.endpoint }} · {{ n.url }} · HTTP {{ n.status }}</summary>
@@ -80,6 +87,8 @@ interface Turn {
     .score { margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-weight: 600; }
     .content { white-space: pre-wrap; font-size: 13px; max-height: 9em; overflow-y: auto; margin-top: 4px; }
     .error { color: var(--danger); }
+    .failed { display: flex; gap: 8px; align-items: center; }
+    .failed .error { flex: 1; margin: 0; }
     .next summary { cursor: pointer; font-size: 12px; color: var(--ok); }
     .next pre { white-space: pre-wrap; max-height: 12em; overflow-y: auto; margin: 4px 0 0; }
     form .input { flex: 1; width: auto; }
@@ -113,6 +122,29 @@ export class RetrievalChat {
     this.turns.update((turns) => turns.map((t, i) => (i === turns.length - 1 ? { ...t, ...answer } : t)));
     this.busy.set(false);
     this.scrollToEnd();
+  }
+
+  /** Sends this turn's question + chunks again to one next agent that failed (POST /next-agents/retry). */
+  protected async retry(turn: number, endpoint: string): Promise<void> {
+    const t = this.turns()[turn];
+    if (!t.chunks) return;
+    this.updateNext(turn, endpoint, (n) => ({ ...n, retrying: true }));
+    try {
+      const result = await request<NextAgentResult>('/next-agents/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint, question: t.question, chunks: t.chunks }),
+      });
+      this.updateNext(turn, endpoint, () => result);
+    } catch (err) {
+      this.updateNext(turn, endpoint, (n) => ({ ...n, retrying: false, error: errorText(err) }));
+    }
+  }
+
+  private updateNext(turn: number, endpoint: string, change: (n: NextResult) => NextResult): void {
+    this.turns.update((turns) =>
+      turns.map((t, i) => (i === turn ? { ...t, next: t.next?.map((n) => (n.endpoint === endpoint ? change(n) : n)) } : t)),
+    );
   }
 
   private scrollToEnd(): void {
