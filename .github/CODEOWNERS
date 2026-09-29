@@ -27,4 +27,7 @@
 /backend/Rag-agent/                 @person-d
 /frontend/agents/rag-ui/            @person-d
 
+/backend/Synthesizer-agent/         @person-e
+/frontend/agents/synthesizer-ui/    @person-e
+
 /.github/                           @platform-lead

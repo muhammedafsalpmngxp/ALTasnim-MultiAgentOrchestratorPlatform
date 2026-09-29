@@ -18,7 +18,8 @@ frontend/
 │   ├── web-search-ui/     :4301  ./Routes (agent page) · ./Widget (findings view)
 │   ├── communication-ui/  :4302  ./Routes · ./Widget (email approval form + sent view)
 │   ├── verifier-ui/       :4303  ./Routes · ./Widget (verdict view)
-│   └── rag-ui/            :4304  ./Routes (ingest files + chat that shows the retrieved chunks; Rag agent :8000)
+│   ├── synthesizer-ui/    :4304  ./Routes · ./Widget (final answer view; Synthesizer agent)
+│   └── rag-ui/            :4305  ./Routes (ingest files + chat that shows the retrieved chunks; Rag agent :8000)
 └── libs/shared/                            [frontend team] @altasnim/shared (singleton at runtime)
     ├── styles/theme.css         design tokens (light/dark), imported by every app
     └── src/lib/
@@ -68,17 +69,17 @@ npm run build
 Stop `npm start` before running `npm run build`. Both write shared federation artifacts to `dist/`, and a mixed
 dev/prod build fails in the browser with `ngDevMode is not defined`. If that happens: stop, delete `dist/`, start again.
 
-## Add a UI for a new agent (e.g. `data`, port 4304)
+## Add a UI for a new agent (e.g. `data`, port 4306)
 
 ```powershell
 npx ng g application data-ui --project-root=agents/data-ui --style=css --ssr=false --skip-tests
-npx ng g @angular-architects/native-federation:init --project data-ui --port 4304 --type remote
+npx ng g @angular-architects/native-federation:init --project data-ui --port 4306 --type remote
 ```
 
 Then:
 1. In `agents/data-ui/federation.config.mjs`, expose `./Routes` and `./Widget`
    (copy one of the existing agent UIs; the remote name must be `<agent name with ->-ui`).
-2. Add `"data-ui": "http://localhost:4304/remoteEntry.json"` to `apps/shell/public/federation.manifest.json`,
+2. Add `"data-ui": "http://localhost:4306/remoteEntry.json"` to `apps/shell/public/federation.manifest.json`,
    a route in `apps/shell/src/app/app.routes.ts`, and a link in the shell sidebar.
 3. Add `proxyConfig` to the project in `angular.json`, and `/api/agents/data` to `proxy.conf.json`.
 4. Add the owner to `.github/CODEOWNERS`.

@@ -19,7 +19,7 @@ interface Upload {
       <div class="page-header">
         <div>
           <h1>RAG</h1>
-          <p class="muted">Rag agent · deployment :8000 · UI :4304 · PDF (text layer), DOCX, TXT, MD, CSV</p>
+          <p class="muted">Rag agent · deployment :8000 · UI :4305 · PDF (text layer), DOCX, TXT, MD, CSV</p>
         </div>
         <button class="btn btn-primary" [disabled]="busy()" (click)="picker.click()">
           {{ busy() ? 'Ingesting…' : 'Ingest files' }}

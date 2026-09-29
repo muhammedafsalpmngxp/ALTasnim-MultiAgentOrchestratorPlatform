@@ -29,7 +29,7 @@ docker compose up -d --build
 
 - API + Swagger UI: http://localhost:8000/docs
 - Qdrant dashboard (collection, points, vectors): http://localhost:6333/dashboard
-- UI: the **RAG** page in the platform frontend (`frontend/agents/rag-ui`, :4304): ingest files, and
+- UI: the **RAG** page in the platform frontend (`frontend/agents/rag-ui`, :4305): ingest files, and
   a chat window that shows the retrieved chunks and each next agent's reply
 
 The models load when the API starts (~30 s; the very first start also downloads them, ~4.5 GB, cached

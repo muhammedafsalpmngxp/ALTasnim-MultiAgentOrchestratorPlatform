@@ -1,0 +1,227 @@
+<div class="chat">
+  <!-- ================= HEADER ================= -->
+  <header class="appbar">
+    <div class="brand">
+      <span class="avatar bot" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6h6M4 12h9M4 18h6" /><path d="m15 9 5 3-5 3" />
+        </svg>
+      </span>
+      <div>
+        <h1>Synthesizer</h1>
+        <p class="sub">
+          <span class="dot" [class.ok]="online() === true" [class.bad]="online() === false"></span>
+          @switch (online()) {
+            @case (true) { Online }
+            @case (false) { Offline }
+            @default { Connecting… }
+          }
+          · <span class="mono">{{ modelLabel() }}</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="bar-right">
+      <span class="stats" aria-label="Summary">
+        <span><b>{{ stats().answered }}</b> answered</span>
+        @if (stats().failed) {
+          <span class="bad"><b>{{ stats().failed }}</b> failed</span>
+        }
+        @if (stats().avgSeconds != null) {
+          <span>avg <b>{{ stats().avgSeconds | number: '1.1-1' }}s</b></span>
+        }
+      </span>
+      @if (runs().length) {
+        <button type="button" class="btn ghost" (click)="clear()" title="Clear the conversation">Clear</button>
+      }
+    </div>
+  </header>
+
+  @if (online() === false) {
+    <div class="banner">
+      <strong>The agent is not reachable at {{ apiUrl() }}.</strong>
+      Start it with <code>.venv\Scripts\python run.py</code>. If this page is opened by IP address, add that
+      address to <code>SYNTHESIZER_CORS_ORIGINS</code> in <code>backend/.env</code>.
+    </div>
+  }
+
+  <!-- ================= CONVERSATION ================= -->
+  <main class="thread" #thread aria-live="polite">
+    <div class="msg bot">
+      <span class="avatar bot" aria-hidden="true">S</span>
+      <div class="bubble intro">
+        <p><b>Hi, I'm the Synthesizer.</b> Questions from other agents appear here, with my answers.</p>
+        <p class="muted small">
+          Agents send their data to <code>{{ apiUrl() || '…' }}</code>.
+        </p>
+        <ol class="flow">
+          @for (name of flowSteps; track name; let i = $index) {
+            <li><span>{{ i + 1 }}</span>{{ name }}</li>
+          }
+        </ol>
+      </div>
+    </div>
+
+    @for (run of conversation(); track run.id) {
+      <article class="turn">
+        <!-- question -->
+        <div class="msg user">
+          <div class="bubble">
+            <div class="who">
+              <span>{{ sender(run) }}</span>
+              <span class="muted">{{ run.received_at | date: 'HH:mm' }}</span>
+            </div>
+            @if (run.question) {
+              <p class="q">{{ run.question }}</p>
+            } @else {
+              <p class="q muted">No question given, the answer is worked out from the data.</p>
+            }
+          </div>
+          <span class="avatar user" [title]="sender(run)">{{ initials(sender(run)) }}</span>
+        </div>
+
+        <!-- answer -->
+        <div class="msg bot">
+          <span class="avatar bot" aria-hidden="true">S</span>
+          <div class="bubble answer" [class]="runLabel(run)">
+            <div class="who">
+              <span>Synthesizer</span>
+              @if (run.state !== 'running') {
+                <span class="badge" [class]="runLabel(run)">{{ runLabel(run) }}</span>
+              }
+              @if (run.seconds != null) {
+                <span class="muted">{{ run.seconds }}s</span>
+              }
+            </div>
+
+            @switch (run.state) {
+              @case ('running') {
+                <div class="typing" aria-label="Writing the answer">
+                  <span></span><span></span><span></span>
+                  <em class="muted small">writing… {{ elapsed(run) }}s</em>
+                </div>
+              }
+              @case ('error') {
+                <div class="alert">
+                  <strong>I could not write the answer.</strong>
+                  <pre>{{ run.error }}</pre>
+                </div>
+              }
+              @default {
+                <div class="markdown" [innerHTML]="answerHtml(run)"></div>
+              }
+            }
+
+            @if (run.state !== 'running') {
+              <div class="actions">
+                @if (run.state === 'done' && answerText(run)) {
+                  <button type="button" class="link" (click)="copy(run)">
+                    {{ copiedId() === run.id ? 'Copied ✓' : 'Copy' }}
+                  </button>
+                }
+                <button type="button" class="link" (click)="toggleDetails(run)" [attr.aria-expanded]="isOpen(run)">
+                  {{ isOpen(run) ? 'Hide details' : 'Details' }}
+                </button>
+              </div>
+            }
+
+            @if (isOpen(run)) {
+              <div class="details">
+                <section>
+                  <span class="eyebrow">Data received</span>
+                  @for (input of inputsOf(run); track input.name) {
+                    <div class="data-block">
+                      <div class="data-head">
+                        <span class="chip mono">{{ input.name }}</span>
+                        @if (input.status) {
+                          <span class="badge" [class]="input.status === 'ok' ? 'success' : 'error'">{{ input.status }}</span>
+                        }
+                      </div>
+                      @if (input.text) {
+                        <p class="data-text" [class.clamp]="isLong(input.text) && !isExpanded(run, input.name, -1)">{{ input.text }}</p>
+                        @if (isLong(input.text)) {
+                          <button type="button" class="link" (click)="toggleItem(run, input.name, -1)">
+                            {{ isExpanded(run, input.name, -1) ? 'Show less' : 'Show more' }}
+                          </button>
+                        }
+                      }
+                      @if (input.items.length) {
+                        <ol class="items">
+                          @for (item of input.items; track $index; let i = $index) {
+                            <li class="item">
+                              <span class="item-num">{{ i + 1 }}</span>
+                              <div class="item-body">
+                                @if (item.title || item.site) {
+                                  <div class="item-head">
+                                    @if (item.url) {
+                                      <a class="item-title" [href]="item.url" target="_blank" rel="noopener">{{ item.title ?? item.site }}</a>
+                                    } @else {
+                                      <span class="item-title">{{ item.title }}</span>
+                                    }
+                                    @if (item.site) {
+                                      <span class="item-site">{{ item.site }}</span>
+                                    }
+                                  </div>
+                                }
+                                @if (item.text) {
+                                  <p class="item-text" [class.clamp]="isLong(item.text) && !isExpanded(run, input.name, i)">{{ item.text }}</p>
+                                  @if (isLong(item.text)) {
+                                    <button type="button" class="link" (click)="toggleItem(run, input.name, i)">
+                                      {{ isExpanded(run, input.name, i) ? 'Show less' : 'Show more' }}
+                                    </button>
+                                  }
+                                }
+                              </div>
+                            </li>
+                          }
+                        </ol>
+                      }
+                    </div>
+                  } @empty {
+                    <p class="muted small">No data was sent with this request.</p>
+                  }
+                </section>
+
+                <section>
+                  <span class="eyebrow">Behind the scenes</span>
+                  <dl class="facts">
+                    <dt>LLM</dt>
+                    <dd>{{ run.llm ? run.llm.model + ' · ' + run.llm.base_url : "None configured (answer = the data's summaries)" }}</dd>
+                    <dt>Received on</dt>
+                    <dd class="mono">{{ run.endpoint ?? 'POST /synthesize' }}</dd>
+                    <dt>Received</dt>
+                    <dd>{{ run.received_at | date: 'medium' }}</dd>
+                    <dt>Time taken</dt>
+                    <dd>{{ run.seconds != null ? run.seconds + ' s' : '–' }}</dd>
+                  </dl>
+                  <details>
+                    <summary>Prompt sent to the LLM</summary>
+                    @switch (promptOf(run)) {
+                      @case (undefined) { <p class="muted small">Loading…</p> }
+                      @case (null) { <p class="muted small">No prompt: no LLM is configured, or there was no data.</p> }
+                      @default { <pre class="mono">{{ promptOf(run) }}</pre> }
+                    }
+                  </details>
+                  <details>
+                    <summary>Raw data</summary>
+                    @for (input of inputsOf(run); track input.name) {
+                      <pre class="mono">{{ input.name }}: {{ input.raw }}</pre>
+                    }
+                  </details>
+                </section>
+              </div>
+            }
+          </div>
+        </div>
+      </article>
+    }
+  </main>
+
+  @if (notice()) {
+    <div class="toast" role="alert">
+      <span>{{ notice() }}</span>
+      <button type="button" class="icon-btn" (click)="notice.set('')" aria-label="Dismiss">✕</button>
+    </div>
+  }
+</div>

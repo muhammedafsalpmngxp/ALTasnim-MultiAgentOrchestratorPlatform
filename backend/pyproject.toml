@@ -25,6 +25,7 @@ packages = [
   "web-search-agent/src/web_search_agent",
   "communication-agent/src/communication_agent",
   "verifier-agent/src/verifier_agent",
+  "Synthesizer-agent/src/synthesizer_agent",
 ]
 
 [tool.pytest.ini_options]
@@ -35,6 +36,7 @@ testpaths = [
   "web-search-agent/tests",
   "communication-agent/tests",
   "verifier-agent/tests",
+  "Synthesizer-agent/tests",
 ]
 
 [tool.ruff]
