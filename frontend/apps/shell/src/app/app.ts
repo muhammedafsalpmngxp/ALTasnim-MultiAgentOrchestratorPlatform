@@ -25,6 +25,7 @@ export class App {
     { path: '/agents/communication', label: 'Communication' },
     { path: '/agents/verifier', label: 'Verifier' },
     { path: '/agents/synthesizer', label: 'Synthesizer' },
+    { path: '/agents/rag', label: 'RAG' },
   ];
 
   constructor() {

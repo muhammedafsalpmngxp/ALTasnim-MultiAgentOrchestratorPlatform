@@ -26,5 +26,6 @@ export const routes: Routes = [
   { path: 'agents/communication', loadChildren: remote('communication-ui') },
   { path: 'agents/verifier', loadChildren: remote('verifier-ui') },
   { path: 'agents/synthesizer', loadChildren: remote('synthesizer-ui') },
+  { path: 'agents/rag', loadChildren: remote('rag-ui') },
   { path: '**', redirectTo: 'flow' },
 ];

@@ -1,0 +1,33 @@
+# Replace the @placeholders with real GitHub users/teams.
+# Enable "Require review from Code Owners" in branch protection.
+
+*                                   @platform-lead
+
+# ---- backend: platform
+/backend/utils/                     @platform-lead
+/backend/orchestrator-agent/        @platform-lead
+/backend/docker-compose.yml         @platform-lead
+/backend/requirements.txt           @platform-lead
+
+# ---- frontend: platform
+/frontend/                          @frontend-lead
+/frontend/apps/                     @frontend-lead
+/frontend/libs/                     @frontend-lead
+
+# ---- agent teams: backend agent + its UI
+/backend/web-search-agent/          @person-a
+/frontend/agents/web-search-ui/     @person-a
+
+/backend/communication-agent/       @person-b
+/frontend/agents/communication-ui/  @person-b
+
+/backend/verifier-agent/            @person-c
+/frontend/agents/verifier-ui/       @person-c
+
+/backend/Rag-agent/                 @person-d
+/frontend/agents/rag-ui/            @person-d
+
+/backend/Synthesizer-agent/         @person-e
+/frontend/agents/synthesizer-ui/    @person-e
+
+/.github/                           @platform-lead
