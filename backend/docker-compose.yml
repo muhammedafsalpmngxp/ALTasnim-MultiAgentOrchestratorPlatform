@@ -16,8 +16,17 @@ x-agent: &agent
 services:
   web-search-agent:
     <<: *agent
-    build: { context: ., dockerfile: web-search-agent/Dockerfile }
+    build: { context: ., dockerfile: web_search_agent/Dockerfile }
+    image: altasnim/web-search-agent
     ports: ["8201:8201"]
+    env_file:  # backend/.env, then the agent's own .env (wins)
+      - path: .env
+        required: false
+      - path: web_search_agent/.env
+        required: false
+    volumes:
+      - ./web_search_agent/models:/app/web_search_agent/models   # the reranker, downloaded once
+      - ./web_search_agent/logs:/app/web_search_agent/logs       # saved runs for Retry
 
   communication-agent:
     <<: *agent

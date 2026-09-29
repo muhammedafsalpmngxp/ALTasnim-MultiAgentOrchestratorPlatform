@@ -1,0 +1,31 @@
+<article class="card">
+  <header class="card__head">
+    <span class="card__cite" title="Citation id">[{{ evidence().citation_id }}]</span>
+    <div class="card__titles">
+      <a class="card__title" [href]="evidence().url" target="_blank" rel="noopener noreferrer">
+        {{ evidence().title }}
+      </a>
+      <div class="card__meta">
+        <span>{{ evidence().domain }}</span>
+        @if (date()) {
+          <span>· {{ date() }}</span>
+        }
+        <span class="card__tag" [class.card__tag--weak]="evidence().extraction_method === 'snippet'">
+          {{ evidence().extraction_method }}
+        </span>
+      </div>
+    </div>
+    <div class="card__score" [title]="'Relevance ' + relevancePct() + '% · final score ' + evidence().final_score">
+      <span class="card__score-value">{{ relevancePct() }}%</span>
+      <span class="card__bar"><span [style.width.%]="relevancePct()"></span></span>
+    </div>
+  </header>
+
+  <p class="card__content">{{ text() }}</p>
+
+  @if (isLong()) {
+    <button type="button" class="card__toggle" (click)="expanded.set(!expanded())">
+      {{ expanded() ? 'Show less' : 'Show more' }}
+    </button>
+  }
+</article>

@@ -1,0 +1,100 @@
+<section class="flow" aria-label="Processing flow">
+  <header class="flow__head">
+    <h3>Processing flow</h3>
+    <span class="flow__progress">{{ doneCount() }}/{{ steps().length }} steps</span>
+    <span
+      class="flow__total"
+      [class.flow__total--live]="outcome() === 'running'"
+      [class.flow__total--success]="outcome() === 'success'"
+      [class.flow__total--failed]="outcome() === 'failed'"
+    >
+      <span class="flow__pulse" aria-hidden="true"></span>
+      Total {{ formatSeconds(totalSeconds() ?? 0) }}
+    </span>
+  </header>
+
+  <div class="flow__bar" [attr.data-outcome]="outcome()" aria-hidden="true">
+    <span [style.width.%]="percent()"></span>
+  </div>
+
+  <ol class="flow__track">
+    @for (step of steps(); track step.id; let first = $first) {
+      @if (!first) {
+        <li class="flow__link" [attr.data-state]="linkState(step)" aria-hidden="true">
+          <span class="flow__line"></span>
+          <svg class="flow__arrow" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" /></svg>
+        </li>
+      }
+      <li class="flow__item">
+        <button
+          type="button"
+          class="box"
+          [attr.data-status]="step.status"
+          [class.box--selected]="isSelected(step)"
+          [attr.aria-pressed]="isSelected(step)"
+          [attr.aria-label]="step.title + ': ' + label(step.status) + ' ' + seconds(step)"
+          (click)="select(step)"
+        >
+          <span class="box__icon">
+            @if (step.status === 'running') {
+              <span class="box__ripple" aria-hidden="true"></span>
+              <span class="box__sweep" aria-hidden="true"></span>
+            }
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              @switch (step.id) {
+                @case ('plan') { <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /> }
+                @case ('search') { <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /> }
+                @case ('extract') { <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6M8 13h8M8 17h5" /> }
+                @case ('chunk') { <path d="m12 3 9 5-9 5-9-5z" /><path d="m3 13 9 5 9-5" /> }
+                @case ('rerank') { <path d="M3 20h18M6 16v-5M11 16V6M16 16v-8" /> }
+                @case ('verify') { <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" /><path d="m9 12 2 2 4-4" /> }
+              }
+            </svg>
+            @if (step.status === 'done') {
+              <span class="box__badge box__badge--done" aria-hidden="true">✓</span>
+            }
+            @if (step.status === 'failed') {
+              <span class="box__badge box__badge--failed" aria-hidden="true">!</span>
+            }
+          </span>
+          <span class="box__title">{{ step.title }}</span>
+          <span class="box__time">
+            @if (step.status === 'running' || step.duration_s !== null) {
+              {{ seconds(step) }}
+            } @else {
+              {{ label(step.status) }}
+            }
+          </span>
+        </button>
+      </li>
+    }
+  </ol>
+
+  @if (selected(); as step) {
+    <div class="flow__detail" [attr.data-status]="step.status" aria-live="polite">
+      <div class="flow__detail-head">
+        <strong>{{ step.title }}</strong>
+        <span class="flow__status">{{ label(step.status) }}</span>
+        @if (step.status === 'running' || step.duration_s !== null) {
+          <span class="flow__secs">{{ seconds(step) }}</span>
+        }
+      </div>
+      @if (step.detail) {
+        <p>{{ step.detail }}</p>
+      }
+      @if (step.items.length) {
+        <ul>
+          @for (item of step.items; track $index) {
+            <li>{{ item }}</li>
+          }
+        </ul>
+      }
+      @if (step.id === 'verify' && retryable() && !running()) {
+        <button type="button" class="btn btn-sm flow__retry" [disabled]="retrying()" (click)="retry.emit()"
+                title="Send another request to the output agents - no search, no LLM call">
+          {{ retrying() ? 'Retrying…' : 'Retry' }}
+        </button>
+      }
+    </div>
+  }
+</section>

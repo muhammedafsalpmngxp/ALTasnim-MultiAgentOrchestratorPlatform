@@ -22,7 +22,7 @@ build-backend = "hatchling.build"
 packages = [
   "utils",
   "orchestrator-agent/src/orchestrator_agent",
-  "web-search-agent/src/web_search_agent",
+  "web_search_agent/src/web_search_agent",
   "communication-agent/src/communication_agent",
   "verifier-agent/src/verifier_agent",
 ]
@@ -32,7 +32,7 @@ asyncio_mode = "auto"
 addopts = "--import-mode=importlib -q"
 testpaths = [
   "orchestrator-agent/tests",
-  "web-search-agent/tests",
+  "web_search_agent/tests",
   "communication-agent/tests",
   "verifier-agent/tests",
 ]

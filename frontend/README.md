@@ -15,7 +15,7 @@ frontend/
 │   ├── approvals/    :4203  HITL inbox: threads.search({status: "interrupted"})
 │   └── admin/        :4204  agents the supervisor can use (/platform/agents) + policies
 ├── agents/                                 [one owner per agent, same person as the backend agent]
-│   ├── web-search-ui/     :4301  ./Routes (agent page) · ./Widget (findings view)
+│   ├── web_search_ui/     :4301  ./Routes (agent page) · ./Widget (findings view)
 │   ├── communication-ui/  :4302  ./Routes · ./Widget (email approval form + sent view)
 │   └── verifier-ui/       :4303  ./Routes · ./Widget (verdict view)
 └── libs/shared/                            [frontend team] @altasnim/shared (singleton at runtime)

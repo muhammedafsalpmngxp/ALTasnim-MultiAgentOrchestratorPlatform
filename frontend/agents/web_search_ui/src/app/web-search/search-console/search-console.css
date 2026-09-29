@@ -1,0 +1,9 @@
+:host { display: block; }
+
+.console { display: flex; flex-direction: column; gap: 14px; }
+.console__form { display: flex; flex-wrap: wrap; gap: 8px; }
+.console__query { flex: 1 1 280px; width: auto; min-width: 0; }
+.console__select { width: auto; }
+
+.console__notice { margin: 0; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--primary-soft); }
+.console__notice--error { background: var(--danger-soft); color: var(--danger); }

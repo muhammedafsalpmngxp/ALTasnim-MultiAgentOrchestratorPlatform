@@ -1,0 +1,52 @@
+<section class="console">
+  <form class="console__form" (submit)="onSubmit($event)">
+    <input
+      class="input console__query"
+      type="search"
+      name="query"
+      placeholder="Ask anything that needs live web data…"
+      aria-label="Search query"
+      [value]="queryText()"
+      (input)="queryText.set($any($event.target).value)"
+    />
+    <select class="input console__select" aria-label="Freshness" (change)="setFreshness($any($event.target).value)">
+      @for (option of freshnessOptions; track option.value) {
+        <option [value]="option.value" [selected]="option.value === freshness()">{{ option.label }}</option>
+      }
+    </select>
+    <select
+      class="input console__select"
+      aria-label="Number of results"
+      (change)="selectedTopK.set(+$any($event.target).value)"
+    >
+      @for (k of topKOptions; track k) {
+        <option [value]="k" [selected]="k === selectedTopK()">Top {{ k }}</option>
+      }
+    </select>
+    <button class="btn btn-primary" type="submit" [disabled]="loading() || !queryText().trim()">
+      {{ loading() ? 'Searching…' : 'Search' }}
+    </button>
+  </form>
+
+  @if (steps().length) {
+    <alt-ws-pipeline-flow
+      [steps]="steps()"
+      [liveSeconds]="liveSeconds()"
+      [totalSeconds]="totalSeconds()"
+      [running]="loading()"
+      [retryable]="!!response()"
+      [retrying]="retrying()"
+      (retry)="retry(response()!.trace_id)"
+    />
+  } @else if (loading()) {
+    <p class="console__notice" aria-live="polite">Connecting to the web-search-agent…</p>
+  }
+
+  @if (error()) {
+    <p class="console__notice console__notice--error" role="alert">{{ error() }}</p>
+  }
+
+  @if (response(); as res) {
+    <alt-ws-result-panel [result]="res" [showFlow]="false" [retrying]="retrying()" (retry)="retry($event)" />
+  }
+</section>

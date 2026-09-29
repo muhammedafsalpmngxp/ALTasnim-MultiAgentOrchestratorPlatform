@@ -15,8 +15,8 @@
 /frontend/libs/                     @frontend-lead
 
 # ---- agent teams: backend agent + its UI
-/backend/web-search-agent/          @person-a
-/frontend/agents/web-search-ui/     @person-a
+/backend/web_search_agent/          @person-a
+/frontend/agents/web_search_ui/     @person-a
 
 /backend/communication-agent/       @person-b
 /frontend/agents/communication-ui/  @person-b

@@ -1,0 +1,27 @@
+# web-search-agent on its own: http://localhost:8201 (the UI still runs with `python run.py --frontend-only`).
+#
+#   cd backend/web_search_agent
+#   docker compose up --build            # add -d to run in the background; `docker compose logs -f` to follow
+#
+# Configuration: backend/.env, then this folder's .env (wins), then `environment:` below (wins over both).
+# The whole platform (orchestrator + every agent) is backend/docker-compose.yml.
+#
+# Sending the output (WEB_SEARCH_VERIFIER_PATH): inside the container "this machine's network" is Docker's own
+# network, so set WEB_SEARCH_DISCOVERY_SUBNETS in .env to your LAN (e.g. 192.168.1.0/24) to reach the verifier /
+# synthesizer machines.
+name: web-search-agent
+
+services:
+  web-search-agent:
+    build: { context: .., dockerfile: web_search_agent/Dockerfile }
+    image: altasnim/web-search-agent
+    ports: ["8201:8201"]
+    env_file:
+      - path: ../.env
+        required: false
+      - path: .env
+        required: false
+    volumes:
+      - ./models:/app/web_search_agent/models   # the reranker: downloaded once, kept between runs
+      - ./logs:/app/web_search_agent/logs       # saved runs, so Retry works after a restart
+    restart: unless-stopped
