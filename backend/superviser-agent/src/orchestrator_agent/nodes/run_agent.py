@@ -1,8 +1,9 @@
 """The body of every agent node (``web_search``, ``communication``, ``verifier``, ...): runs ONE plan step on
 that agent (in-process graph or its own deployment, see config/agents.*.yaml).
 
-- One agent thread per (orchestrator thread, step, attempt): stable id, so a
-  re-run of this node never starts the agent twice.
+- One agent thread per (orchestrator thread, turn, step, attempt): stable id, so a
+  re-run of this node never starts the agent twice, while the next question in the
+  same chat (a new turn, see intake) gets fresh agent threads instead of the old results.
 - If the agent stops at its own ``interrupt()`` (e.g. email approval), this node
   raises an orchestrator ``interrupt()`` with the agent's payload. There is one
   inbox for all approvals, and resuming the orchestrator resumes the agent.
@@ -55,7 +56,8 @@ def make_run_agent(get_deps: DepsProvider):
         step = Step.model_validate(payload["step"])
         ctx = dict(ctx_or_default(runtime.context))
         parent = get_config()["configurable"].get("thread_id", "no-thread")
-        thread = str(uuid.uuid5(_NS, f"{parent}:{step.id}:{payload.get('attempt', 0)}"))
+        key = f"{parent}:{payload.get('turn', 0)}:{step.id}:{payload.get('attempt', 0)}"
+        thread = str(uuid.uuid5(_NS, key))
 
         try:
             client = get_deps().registry.client(step.agent)

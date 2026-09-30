@@ -146,3 +146,16 @@ def test_any_request_is_a_question_only_small_talk_is_answered_directly():
     for small_talk in ("hello", "Hi!", "thanks", "what can you do?"):
         d = RulePlanner().decide(small_talk, [], CARDS, {}, [])
         assert d.action == "answer" and "documents" in d.answer and "email" not in d.answer
+
+
+async def test_each_question_in_a_chat_runs_the_agents_again():
+    """A second question on the same thread must not reuse the first question's agent threads (old answers)."""
+    graph, seen = make_graph([{"content": "PDO issues the pegging sheet", "document_name": "rules.pdf"}])
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+    await graph.ainvoke({"request": "Who issues the pegging sheet?"}, config)
+    await graph.ainvoke({"request": "Who issues the FLAF?"}, config)
+
+    assert [name for name, _ in seen] == ["rag", "verifier", "synthesizer"] * 2
+    questions = [task["params"]["question"] for name, task in seen if name == "rag"]
+    assert questions == ["Who issues the pegging sheet?", "Who issues the FLAF?"]
