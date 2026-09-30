@@ -1,6 +1,6 @@
-# orchestrator-agent: its own LangGraph Agent Server deployment on port 8100.
+# superviser-agent (the orchestrator): its own LangGraph Agent Server deployment on port 8100.
 # Build context is backend/ (docker-compose.yml does this):
-#   docker build -f orchestrator-agent/Dockerfile -t altasnim/orchestrator-agent .
+#   docker build -f superviser-agent/Dockerfile -t altasnim/orchestrator-agent .
 #
 # Runtime: `langgraph dev` (in-memory Agent Server, no license needed) for dev/test.
 # Production: licensed Agent Server image (`langgraph build`) with Postgres + Redis.
@@ -18,7 +18,7 @@ RUN grep -v '^-e ' requirements.txt > /tmp/requirements.txt && pip install -r /t
 COPY . .
 RUN pip install --no-deps -e .
 
-WORKDIR /app/orchestrator-agent
+WORKDIR /app/superviser-agent
 EXPOSE 8100
 HEALTHCHECK --interval=10s --timeout=5s --retries=12 CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('ORCHESTRATOR_PORT', '8100') + '/ok', timeout=4)"
 # Listens on ORCHESTRATOR_PORT (backend/.env), default 8100

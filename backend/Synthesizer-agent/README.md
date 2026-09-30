@@ -1,6 +1,6 @@
 # synthesizer-agent
 
-**Owner:** Person D (team-synthesizer) · **Port:** `SYNTHESIZER_PORT` in `backend/.env` (8203; 8204 in Docker) · plain **FastAPI** (no LangGraph)
+**Owner:** Person D (team-synthesizer) · **Port:** `SYNTHESIZER_PORT` in `backend/.env` (8203; 8204 in Docker) · a **LangGraph** deployment (graph `synthesizer`) with FastAPI routes
 
 A simple answering agent: it takes the outputs of earlier agents (for example the verifier), puts them in
 the prompt with the user's question, and returns the LLM's answer.
@@ -14,6 +14,9 @@ the prompt with the user's question, and returns the LLM's answer.
 | `src/synthesizer_agent/api.py` | The API: `GET /ok`, `GET /card`, `POST /synthesize` |
 | `src/synthesizer_agent/card.py` | Description of the agent, served at `/card` |
 | `src/synthesizer_agent/runs.py` | Remembers recent requests for the UI (`GET /runs`) |
+| `src/synthesizer_agent/graph.py` | The LangGraph graph `synthesizer` the supervisor runs: `{"task"}` in, `{"result"}` out |
+| `src/synthesizer_agent/server.py` | The routes under LangGraph: api.py without the catch-alls (they would hide its API) |
+| `langgraph.json` | Serves the graph + the routes: `langgraph dev` (the Docker image does this) |
 | UI | Angular micro-frontend in the team frontend: `frontend/agents/synthesizer-ui` (port 4304) |
 
 ## API
@@ -85,7 +88,12 @@ docker run --rm -p 8203:8203 --env-file ../.env -e SYNTHESIZER_RELOAD=false alta
 Settings and the OpenAI key come from `backend/.env` at run time; they are never copied into the image
 (`.dockerignore`). With the team setup: `docker compose up --build synthesizer-agent` (container port 8204).
 
-## Orchestrator
+## Supervisor
 
-The orchestrator only calls LangGraph agents, so this agent is **disabled** in
-`orchestrator-agent/config/agents.dev.yaml`. Other agents call it directly at `POST /synthesize`.
+The synthesizer is a node of the supervisor graph (`superviser-agent/config/agents.dev.yaml`): the last step of
+every question. The supervisor runs the graph `synthesizer` on `SYNTHESIZER_PORT` with the question
+(`task.params.question`) and the earlier steps' outputs (`task.inputs`: the passages or web results, and the
+verifier's verdict), and replies with its answer. Those calls are listed in `GET /runs` too.
+
+The image runs `langgraph dev` (graph + routes). `python run.py` still runs the plain FastAPI app alone, with the
+catch-all routes (POST on any path).

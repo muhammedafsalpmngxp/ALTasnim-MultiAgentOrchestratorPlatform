@@ -5,7 +5,7 @@
 
 # ---- backend: platform
 /backend/utils/                     @platform-lead
-/backend/orchestrator-agent/        @platform-lead
+/backend/superviser-agent/          @platform-lead
 /backend/docker-compose.yml         @platform-lead
 /backend/requirements.txt           @platform-lead
 

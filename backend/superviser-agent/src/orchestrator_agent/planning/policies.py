@@ -3,11 +3,12 @@
 1. Before any step that needs human approval (approval_mode internal/gate),
    insert a verifier on that step's inputs, so the approver sees checked data.
 2. approval_mode "gate": insert an orchestrator ``hitl`` step before the agent.
-3. If the plan has no verifier at all, verify the final steps.
-4. Approvals run one at a time (one open interrupt per run keeps the inbox simple).
+3. Before the synthesizer writes the answer, a verifier checks the synthesizer's inputs; the synthesizer
+   also gets the verdict as an input (``depends_on``), so it can say what was or was not confirmed.
+4. If the plan has no verifier at all, verify the final steps.
+5. Approvals run one at a time (one open interrupt per run keeps the inbox simple).
 
-Policy steps use ``after`` (ordering only), so they never change which data a
-supervisor step receives.
+Other policy steps use ``after`` (ordering only), so they never change which data a supervisor step receives.
 """
 
 from __future__ import annotations
@@ -31,6 +32,15 @@ def enforce_policies(plan: Plan, cards: dict[str, AgentCard], policies: Policies
         step = step.model_copy(deep=True)
         card = cards.get(step.agent)
         mode = card.approval_mode if card else "none"
+
+        if (policies.verify_before_synthesis and has_verifier and step.kind == "agent"
+                and step.agent == "synthesizer" and step.depends_on):
+            question = step.params.get("question") or step.objective
+            verify = Step(id=f"v_{step.id}", agent="verifier", added_by="policy",
+                          objective=f"Check that the results answer: {question}",
+                          depends_on=list(step.depends_on), after=list(step.after))
+            out.append(verify)
+            step.depends_on = [*step.depends_on, verify.id]
 
         if step.kind == "agent" and mode in ("internal", "gate"):
             if policies.verify_before_approval and has_verifier and step.depends_on:

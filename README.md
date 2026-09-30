@@ -31,7 +31,7 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── pyproject.toml              ONE pyproject (packages utils + all agents; pytest/ruff config)
 │   ├── docker-compose.yml          all agents, each in its own container and port
 │   ├── utils/                      shared utilities: contracts, LLM factory, env, auth, events, test kit
-│   ├── orchestrator-agent/  :8100  supervisor, plan_guard, progress, run_agent, hitl_gate, respond
+│   ├── superviser-agent/    :8100  supervisor (orchestrator) graph: every agent is one of its nodes
 │   ├── web_search_agent/    :8201  plan_queries → parallel search → summarize
 │   ├── communication-agent/ :8202  draft → human approval (interrupt) → send
 │   ├── verifier-agent/      :8203  parallel checks → verdict
@@ -160,7 +160,7 @@ Run one agent: `cd backend/web_search_agent` then `langgraph dev --port 8201`. S
 
 | Owner | Backend | Frontend |
 |---|---|---|
-| Platform lead | `backend/utils`, `backend/orchestrator-agent` | – |
+| Platform lead | `backend/utils`, `backend/superviser-agent` | – |
 | Frontend lead | – | `frontend/apps`, `frontend/libs` |
 | Person A | `backend/web_search_agent` | `frontend/agents/web_search_ui` |
 | Person B | `backend/communication-agent` | `frontend/agents/communication-ui` |

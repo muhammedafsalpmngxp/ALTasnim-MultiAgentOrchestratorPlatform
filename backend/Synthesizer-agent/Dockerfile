@@ -1,4 +1,5 @@
-# Synthesizer agent: plain FastAPI app (no LangGraph).
+# Synthesizer agent: a LangGraph deployment (graph "synthesizer", for the supervisor) with its HTTP routes
+# (POST /synthesize, GET /runs, /card, ... for its UI and other callers), served by `langgraph dev`.
 #
 # Build (from backend/Synthesizer-agent):
 #   docker build -t altasnim/synthesizer-agent .
@@ -24,11 +25,13 @@ RUN sed '/^# ---- tests/,$d' requirements.txt > /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
 # 2) the agent (src/ holds the code and the prompt files)
+COPY langgraph.json .
 COPY src ./src
 COPY run.py .
+ENV PYTHONPATH=/app/src
 
-# 3) run as a normal user, not root
-RUN useradd --create-home --uid 10001 synthesizer
+# 3) run as a normal user, not root (langgraph dev keeps its in-memory runs under /app/.langgraph_api)
+RUN useradd --create-home --uid 10001 synthesizer && chown synthesizer /app
 USER synthesizer
 
 # Defaults; docker run -e / --env-file / docker-compose override them
@@ -38,7 +41,8 @@ ENV SYNTHESIZER_HOST=0.0.0.0 \
 
 EXPOSE 8204
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=6 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
   CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('SYNTHESIZER_PORT', '8204') + '/ok', timeout=4)"
 
-CMD ["python", "run.py"]
+# Listens on SYNTHESIZER_PORT. Without LangGraph (plain FastAPI, catch-all routes): python run.py
+CMD ["sh", "-c", "exec langgraph dev --host 0.0.0.0 --port ${SYNTHESIZER_PORT:-8204} --no-browser --no-reload"]

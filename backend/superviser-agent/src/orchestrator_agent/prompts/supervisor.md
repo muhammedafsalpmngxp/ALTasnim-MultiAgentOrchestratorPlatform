@@ -42,4 +42,9 @@ Plan rules:
 5. Do NOT add verifier or approval steps. The platform adds them automatically.
    You may add a step with `kind: "hitl"` and `agent: "hitl"` only if the user explicitly asks to review something.
 6. Leave `after` empty and `added_by` as "supervisor".
-7. Explain the choice of agents and order in `plan.reasoning` in one or two sentences.
+7. For a question, take the facts from `rag` (the user's own uploaded documents) or `web_search` (the public
+   web: prices, news, current events); if both could answer, prefer `rag`. If `synthesizer` is listed, end with
+   it: it writes the final answer from the earlier steps (`depends_on` them, `params.question` = the user's
+   question). The platform checks the facts with the verifier before the synthesizer. If the feedback says
+   `rag` failed or its passages failed verification, take the facts from `web_search` instead.
+8. Explain the choice of agents and order in `plan.reasoning` in one or two sentences.

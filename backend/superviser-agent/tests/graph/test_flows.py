@@ -28,6 +28,20 @@ def make_graph(**overrides):
     return build_graph(deps=deps, checkpointer=InMemorySaver())
 
 
+def test_every_agent_is_a_node_of_the_supervisor_graph():
+    nodes = set(make_graph().get_graph().nodes)
+    assert {"web_search", "communication", "verifier"} <= nodes
+    assert "run_agent" not in nodes
+
+
+def test_default_graph_has_a_node_per_enabled_agent_in_the_config():
+    from orchestrator_agent.graph import graph
+    from orchestrator_agent.settings import load_agents_config
+
+    enabled = {name for name, agent in load_agents_config().agents.items() if agent.enabled}
+    assert enabled and enabled <= set(graph.get_graph().nodes)
+
+
 def new_thread():
     return {"configurable": {"thread_id": str(uuid.uuid4())}}
 
@@ -84,7 +98,7 @@ async def test_q3_compare_runs_both_searches_in_the_same_wave(sent):
         {"request": "Compare iPhone price in Oman and UAE and email it to rijin@gmail.com"},
         cfg, stream_mode="debug",
     ):
-        if chunk["type"] == "task" and chunk["payload"]["name"] == "run_agent":
+        if chunk["type"] == "task" and chunk["payload"]["name"] == "web_search":  # the web_search node
             waves.append((chunk["step"], chunk["payload"]["input"]["step"]["id"]))
 
     first_wave = {sid for step, sid in waves if step == min(s for s, _ in waves)}

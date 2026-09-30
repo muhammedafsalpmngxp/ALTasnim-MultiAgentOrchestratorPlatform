@@ -1,4 +1,5 @@
-"""run_agent: execute ONE plan step on its agent deployment.
+"""The body of every agent node (``web_search``, ``communication``, ``verifier``, ...): runs ONE plan step on
+that agent (in-process graph or its own deployment, see config/agents.*.yaml).
 
 - One agent thread per (orchestrator thread, step, attempt): stable id, so a
   re-run of this node never starts the agent twice.

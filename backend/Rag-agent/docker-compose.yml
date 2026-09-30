@@ -37,7 +37,8 @@ services:
       - RAG_QDRANT_URL=http://qdrant:6333
       - RAG_PORT=${RAG_PORT:-8000}  # same value as the port mapping below, so they always match
     ports:
-      - "127.0.0.1:${RAG_PORT:-8000}:${RAG_PORT:-8000}"  # no auth: keep it on localhost / the internal network
+      # on the LAN, so the supervisor can call it from any machine. No auth: use it on a trusted network only.
+      - "${RAG_PORT:-8000}:${RAG_PORT:-8000}"
     extra_hosts:
       - "host.docker.internal:host-gateway"  # reach services on this PC, e.g. the next agent on :8203
     volumes:

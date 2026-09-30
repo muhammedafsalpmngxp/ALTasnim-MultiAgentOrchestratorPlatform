@@ -14,6 +14,12 @@ def respond(state: OrchestratorState) -> dict:
     if not text:
         plan = Plan.model_validate(state["plan"])
         results = state.get("results", {})
+        # the synthesizer wrote the final answer from all the other steps: that is the reply
+        answers = [results[s.id]["output"] for s in plan.steps
+                   if s.agent == "synthesizer" and results.get(s.id, {}).get("status") == "ok"]
+        if answers:
+            text = answers[-1].get("answer") or answers[-1].get("summary")
+    if not text:
         lines = []
         for step in plan.steps:
             res = results.get(step.id)

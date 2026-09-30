@@ -1,4 +1,4 @@
-# Synthesizer agent (plain FastAPI, no LangGraph).
+# Synthesizer agent: LangGraph graph + FastAPI routes.
 #
 #   cd backend\Synthesizer-agent
 #   python -m venv .venv          (Python 3.11 or newer)
@@ -10,6 +10,8 @@ uvicorn[standard]>=0.30
 pydantic>=2.7,<3
 python-dotenv>=1.0
 langchain-openai>=1.0          # OpenAI / OpenAI-compatible LLM (SYNTHESIZER_OPENAI_*)
+langgraph>=1.2,<2              # the graph the supervisor runs (graph.py)
+langgraph-cli[inmem]>=0.4,<1   # serves it with the routes: langgraph dev
 
 # ---- tests
 pytest>=8

@@ -21,7 +21,7 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = [
   "utils",
-  "orchestrator-agent/src/orchestrator_agent",
+  "superviser-agent/src/orchestrator_agent",
   "web_search_agent/src/web_search_agent",
   "communication-agent/src/communication_agent",
   "verifier-agent/src/verifier_agent",
@@ -32,7 +32,7 @@ packages = [
 asyncio_mode = "auto"
 addopts = "--import-mode=importlib -q"
 testpaths = [
-  "orchestrator-agent/tests",
+  "superviser-agent/tests",
   "web_search_agent/tests",
   "communication-agent/tests",
   "verifier-agent/tests",

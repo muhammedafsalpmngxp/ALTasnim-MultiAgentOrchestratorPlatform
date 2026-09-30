@@ -51,18 +51,13 @@ services:
 
   orchestrator-agent:
     <<: *agent
-    build: { context: ., dockerfile: orchestrator-agent/Dockerfile }
+    build: { context: ., dockerfile: superviser-agent/Dockerfile }
     ports: ["${ORCHESTRATOR_PORT:-8100}:${ORCHESTRATOR_PORT:-8100}"]
+    # The supervisor finds every agent on the network by its port + endpoint (AGENT_* in .env): on this machine or a
+    # teammate's. Set AGENT_SUBNET to your LAN (e.g. 192.168.1.0/24); empty = this compose network only.
     environment:
       ORCHESTRATOR_PORT: ${ORCHESTRATOR_PORT:-8100}
       AGENT_TRANSPORT: remote
-      AGENT_WEB_SEARCH_URL: http://web-search-agent:${WEB_SEARCH_PORT:-8201}
-      AGENT_COMMUNICATION_URL: http://communication-agent:${COMMUNICATION_PORT:-8202}
-      AGENT_VERIFIER_URL: http://verifier-agent:${VERIFIER_PORT:-8203}
-    depends_on:
-      web-search-agent: { condition: service_healthy }
-      communication-agent: { condition: service_healthy }
-      verifier-agent: { condition: service_healthy }
 
   mailpit:
     image: axllent/mailpit:latest

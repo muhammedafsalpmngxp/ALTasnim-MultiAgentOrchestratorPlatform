@@ -1,0 +1,11 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "python_version": "3.12",
+  "dependencies": ["."],
+  "graphs": {
+    "rag": "rag_agent.graph:graph"
+  },
+  "http": {
+    "app": "rag_agent.main:app"
+  }
+}

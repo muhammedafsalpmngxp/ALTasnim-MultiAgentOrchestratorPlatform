@@ -29,6 +29,10 @@ docker compose --env-file ../.env up -d --build
 
 `--env-file ../.env` makes compose read the shared `backend/.env` (e.g. `RAG_PORT`) for the port mapping.
 
+It runs as a LangGraph deployment (`langgraph dev`, `langgraph.json`): the graph **`rag`**, which the
+supervisor runs as its rag node (`{"task": AgentTask}` in, `{"result": {...}}` out: the same retrieve,
+never passed on), plus all the HTTP routes below for rag-ui.
+
 - API + Swagger UI: http://localhost:8000/docs (port = `RAG_PORT` in `backend/.env`)
 - Qdrant dashboard (collection, points, vectors): http://localhost:6333/dashboard
 - UI: the **RAG** page in the platform frontend (`frontend/agents/rag-ui`, :4305): ingest files, and
@@ -49,7 +53,9 @@ delete the stored chunks and the model cache).
 | POST | `/retrieve` | `{"question": "...", "top_k": 5}` → `{question, chunks, next_agents}` |
 | POST | `/documents/stream`, `/retrieve/stream` | Same as `/documents` and `/retrieve`, but report every step live as NDJSON lines: `{plan}`, then `{step, state: start / progress / done, detail, progress}`, then `{result}` (or a last `{error}`). The UI's animated progress uses them; the ranked chunks arrive before the next agents answer |
 | POST | `/next-agents/retry` | `{"endpoint": "8204/synthesize", "question", "chunks"}` → sends them again to that next agent (the UI's **Retry** button); one `next_agents` entry |
+| GET | `/card` | What this agent does, for the supervisor's planning |
 | GET | `/health` | Liveness |
+| POST | `/threads/{id}/runs/wait`, ... | The LangGraph API: runs the graph `rag` (the supervisor's calls) |
 
 `/retrieve` returns chunks best first, and what each next agent replied:
 
@@ -81,7 +87,8 @@ remembered; if it stops answering it is searched again once. Inside Docker the c
 Wi-Fi network by itself, so the subnet must be set; outside Docker an empty subnet means "this machine's
 own /24".
 
-There is no authentication: keep ports 8000 and 6333 on localhost or the internal network.
+There is no authentication. Port 8000 is on the LAN, so the supervisor can call it from any machine: use a
+trusted network only. Qdrant (6333) stays on localhost.
 
 ## Configuration
 
@@ -97,6 +104,7 @@ The `RAG_*` keys of the one shared `backend/.env` (template and descriptions: `b
 | File | |
 |---|---|
 | `rag_agent/main.py` | FastAPI routes: upload flow and retrieve flow |
+| `rag_agent/graph.py` | The LangGraph graph `rag` the supervisor runs (the retrieve flow) |
 | `rag_agent/parsing.py` | File → text (no OCR) |
 | `rag_agent/chunking.py` | Text → chunks, keeping line breaks, with overlap |
 | `rag_agent/models.py` | bge-m3 dense + sparse embeddings, bge reranker (GPU fp16 when available) |

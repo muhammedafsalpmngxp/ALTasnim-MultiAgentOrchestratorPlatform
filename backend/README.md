@@ -22,13 +22,14 @@ backend/
 │   ├── events.py              custom stream events (get_stream_writer)
 │   └── testing/               assert_agent_contract, run_agent_graph, build_stub_agent
 │
-├── orchestrator-agent/        [platform lead]  :8100   graph id: orchestrator
+├── superviser-agent/          [platform lead]  :8100   graph id: orchestrator (the supervisor)
 │   ├── Dockerfile · langgraph.json · README · CHANGELOG
 │   ├── config/                agents.dev.yaml (agents + ports + transport), policies.yaml
 │   ├── src/orchestrator_agent/
-│   │   ├── graph.py           intake → supervisor → plan_guard → progress ⇄ run_agent / hitl_gate → respond
+│   │   ├── graph.py           intake → supervisor → plan_guard → progress ⇄ agent nodes / hitl_gate → respond
 │   │   ├── state.py · settings.py · deps.py
-│   │   ├── nodes/             intake, supervisor, clarify, plan_guard, progress, run_agent, hitl_gate, respond
+│   │   ├── nodes/             intake, supervisor, clarify, plan_guard, progress, run_agent (every agent node's
+│   │   │                      body), hitl_gate, respond
 │   │   ├── planning/          planner, rule_planner, llm_planner, validate, policies
 │   │   ├── registry/          agent discovery (GET /card) + health
 │   │   ├── clients/           local (in-process) / remote (langgraph_sdk) agent clients
@@ -131,7 +132,7 @@ same port to `--port`). One terminal per agent (conda env active), from the agen
 cd web_search_agent;    langgraph dev --port 8201 --no-browser
 cd communication-agent; langgraph dev --port 8202 --no-browser
 cd verifier-agent;      langgraph dev --port 8203 --no-browser
-cd orchestrator-agent;  langgraph dev --port 8100 --no-browser
+cd superviser-agent;    langgraph dev --port 8100 --no-browser
 ```
 
 With `AGENT_TRANSPORT=remote` (in `.env`), the orchestrator calls the agents over HTTP.
@@ -174,7 +175,7 @@ asyncio.run(main())
 2. In `pyproject.toml`, add `"data-agent/src/data_agent"` to `packages` and `"data-agent/tests"` to `testpaths`.
    Put any new third-party package in `requirements.txt`.
 3. Write `card.py` and `graph.py`. Make `tests/contract` pass.
-4. Add the service to `docker-compose.yml`, the agent to `orchestrator-agent/config/agents.dev.yaml`,
+4. Add the service to `docker-compose.yml`, the agent to `superviser-agent/config/agents.dev.yaml`,
    and the owner to `.github/CODEOWNERS`.
 
 The supervisor plans with the new agent automatically, and the Multi Agent Flow UI shows it as a new node.

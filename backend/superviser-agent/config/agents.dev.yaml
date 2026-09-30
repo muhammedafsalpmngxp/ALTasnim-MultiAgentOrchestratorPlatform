@@ -1,48 +1,61 @@
-# Agent registry for the dev environment.
+# The agents of the supervisor. Every enabled agent is a node of the supervisor graph, and every agent is a
+# LangGraph deployment ({"task": AgentTask} in, {"result": {...}} out). The supervisor plans which nodes run,
+# in which order, and passes each one's output to the next:
 #
-# transport (overridden by env AGENT_TRANSPORT):
-#   local  - agent graphs run in-process, each with its own in-memory checkpointer.
-#            No servers needed. For development and tests only.
-#   remote - each agent is its own LangGraph Agent Server deployment; called with
-#            langgraph_sdk (threads/runs). Cards are discovered from GET <url>/card.
+#   question -> rag (the user's documents) | web_search (the web) -> verifier -> synthesizer -> answer
 #
+# port + graph_id: where the agent listens and its graph (called via /threads/{id}/runs). The supervisor finds
+# the machine on the network itself (no IPs). backend/.env overrides (section superviser-agent):
+# AGENT_<NAME>=PORT, AGENT_<NAME>_URL=http://host:port pins a machine, AGENT_SUBNET = the networks searched.
+#
+# transport (env AGENT_TRANSPORT):
+#   remote - every agent on its own port/machine (backend/.env sets this)
+#   local  - agents with local_graph run in-process (no servers; development and tests only)
+#
+# card: planning fields merged over the agent's own GET /card (for agents whose card lacks them).
 # To add an agent: add an entry here (enabled: false until it is ready).
 transport: local
 
 agents:
   web_search:
     enabled: true
-    url: http://localhost:8201
+    port: 8201
     graph_id: web_search
     local_graph: web_search_agent.graph:graph
     local_card: web_search_agent.card:CARD
 
-  communication:
+  rag:
     enabled: true
-    url: http://localhost:8202
-    graph_id: communication
-    local_graph: communication_agent.graph:graph
-    local_card: communication_agent.card:CARD
+    port: 8000
+    graph_id: rag
 
   verifier:
     enabled: true
-    url: http://localhost:8203
+    port: 8203
     graph_id: verifier
     local_graph: verifier_agent.graph:graph
     local_card: verifier_agent.card:CARD
 
-  # Disabled: the synthesizer is now a plain FastAPI app (POST /synthesize), and the orchestrator only
-  # calls LangGraph agents. Enable it again once it is called through the orchestrator.
   synthesizer:
-    enabled: false
-    url: http://localhost:8204
+    enabled: true
+    port: 8204
     graph_id: synthesizer
-    local_graph: synthesizer_agent.graph:graph
-    local_card: synthesizer_agent.card:CARD
+    card:
+      when_to_use: >-
+        Always the last step of a question: writes ONE clear final answer from the outputs of the earlier steps
+        (depends_on them).
+      when_not_to_use: Finding facts (use rag or web_search first); sending messages.
+      examples: ["Write the final answer to: what is the retention money?"]
+      params_schema:
+        type: object
+        properties:
+          question: {type: string, description: "the user's question"}
+        required: [question]
 
-  # data:
-  #   enabled: false
-  #   url: http://localhost:8204
-  #   graph_id: data
-  #   local_graph: data_agent.graph:graph
-  #   local_card: data_agent.card:CARD
+  # Not a node of the supervisor (email is not part of its flow). The agent still runs on its own (port 8202).
+  communication:
+    enabled: false
+    port: 8202
+    graph_id: communication
+    local_graph: communication_agent.graph:graph
+    local_card: communication_agent.card:CARD

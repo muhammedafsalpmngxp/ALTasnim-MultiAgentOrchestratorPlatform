@@ -259,3 +259,28 @@ def test_run_py_reads_host_and_port_from_env(monkeypatch):
     run = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(run)
     assert run.settings() == {"host": "127.0.0.1", "port": 9123, "reload": False}
+
+
+def test_graph_follows_the_agent_contract(monkeypatch):
+    from synthesizer_agent.graph import graph
+
+    monkeypatch.setattr(agent, "_model", lambda: None)  # no LLM: the answer is the inputs' summaries
+    assert set(graph.get_input_jsonschema()["properties"]) == {"task"}
+    assert set(graph.get_output_jsonschema()["properties"]) == {"result"}
+    out = graph.invoke({"task": {"task_id": "s2", "objective": "Write the final answer",
+                                 "params": {"question": QUESTION}, "inputs": VERIFIED}})
+    assert out["result"]["status"] == "ok"
+    assert "OMR 329" in out["result"]["summary"]
+    assert client.get("/runs").json()[0]["question"] == QUESTION  # listed like the HTTP calls
+
+
+def test_langgraph_server_drops_only_the_catch_all_routes(monkeypatch):
+    import importlib
+
+    monkeypatch.setattr(app.router, "routes", list(app.router.routes))  # the original list comes back after
+    from synthesizer_agent import server
+
+    importlib.reload(server)
+    paths = {getattr(r, "path", None) for r in server.app.router.routes}
+    assert "/{path:path}" not in paths  # would hide the LangGraph API (/threads, /assistants, ...)
+    assert {"/synthesize", "/card", "/ok", "/runs"} <= paths

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "python_version": "3.12",
+  "dependencies": ["./src"],
+  "graphs": {
+    "synthesizer": "synthesizer_agent.graph:graph"
+  },
+  "http": {
+    "app": "synthesizer_agent.server:app"
+  }
+}

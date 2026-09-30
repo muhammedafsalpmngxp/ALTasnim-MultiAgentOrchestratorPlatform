@@ -6,7 +6,11 @@ POST /retrieve   question -> sparse + dense search -> fused (RRF) -> bge-reranke
 POST /next-agents/retry  send {question, chunks} again to one of those next agents (e.g. after it failed)
 
 POST /documents/stream and /retrieve/stream do the same, reporting each step as it happens (NDJSON, for the UI).
-No LLM call: the next agents answer from the question and the reranked chunks.
+GET  /card       what this agent does, for the supervisor's planning
+
+No LLM call: the next agents answer from the question and the reranked chunks. The supervisor runs the
+LangGraph graph instead (graph.py, served with these routes by `langgraph dev`): the same retrieve, and the
+supervisor routes the result, so nothing is passed to RAG_NEXT_AGENTS.
 """
 
 import json
@@ -142,8 +146,10 @@ def _upload_steps(name: str, data: bytes) -> Steps:
     yield {"result": {"document_id": document_id, "document_name": name, "chunks": len(chunks)}}
 
 
-def _retrieve_steps(req: RetrieveRequest) -> Steps:
-    yield {"plan": ["embed", "search", "rerank"] + (["send"] if settings.next_agents else [])}
+def _retrieve_steps(req: RetrieveRequest, forward: bool = True) -> Steps:
+    """``forward``: pass {question, chunks} to RAG_NEXT_AGENTS (the graph does not: the supervisor routes)."""
+    send = forward and bool(settings.next_agents)
+    yield {"plan": ["embed", "search", "rerank"] + (["send"] if send else [])}
 
     yield {"step": "embed", "state": "start"}
     query = models.embed([req.question])[0]
@@ -166,13 +172,18 @@ def _retrieve_steps(req: RetrieveRequest) -> Steps:
 
     result = {"question": req.question, "chunks": chunks}
     next_agents: list[dict] = []
-    if settings.next_agents:
+    if send:
         endpoints = ", ".join(f"{port}{path}" for port, path in settings.next_agents)
         yield {"step": "send", "state": "start", "detail": endpoints}
         next_agents = _pass_to_next_agents(result)
         answered = sum("error" not in n for n in next_agents)
         yield {"step": "send", "state": "done", "detail": f"{answered} of {len(next_agents)} answered"}
-    yield {"result": {**result, "next_agents": next_agents}}
+    # No summary when passages are found: the verifier judges a step's summary if it has one, else its chunks,
+    # so a summary like "found 2 passages" would hide the passages from it. Nothing found: failed + the reason
+    # (the supervisor then tries the web).
+    status = {"status": "ok"} if chunks else {
+        "status": "failed", "summary": "No passage in the documents matches the question"}
+    yield {"result": {**result, **status, "next_agents": next_agents}}
 
 
 def _read_upload(file: UploadFile) -> tuple[str, bytes]:
@@ -186,6 +197,29 @@ def _read_upload(file: UploadFile) -> tuple[str, bytes]:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/card")
+def card() -> dict:
+    """What this agent does, for the supervisor's planning (utils.contracts.AgentCard)."""
+    return {
+        "name": "rag",
+        "version": "1.0.0",
+        "description": "Finds the passages of the user's uploaded documents that answer a question (hybrid dense + "
+                       "sparse search in Qdrant, then reranked).",
+        "when_to_use": "The question is about the user's own uploaded documents (contracts, reports, project rules, "
+                       "policies, manuals).",
+        "when_not_to_use": "Public or current information on the web (prices, news, weather); sending messages.",
+        "examples": ["What is the retention money in the contract?", "Who issues the pegging sheet?"],
+        "params_schema": {
+            "type": "object",
+            "properties": {"question": {"type": "string", "description": "the user's question"},
+                           "top_k": {"type": "integer", "minimum": 1, "maximum": 50}},
+            "required": ["question"],
+        },
+        "output_schema": {"type": "object", "properties": {"status": {}, "summary": {}, "question": {}, "chunks": {}}},
+        "owner": "person-d",
+    }
 
 
 @app.post("/documents", status_code=201)
@@ -255,12 +289,18 @@ def _pass_to_next_agents(result: dict) -> list[dict]:
         return list(pool.map(lambda endpoint: _send(*endpoint, result), settings.next_agents))
 
 
+def retrieve_result(req: RetrieveRequest, forward: bool = True) -> dict:
+    """The retrieve flow to its end (the JSON endpoint and the LangGraph graph)."""
+    return _run(_retrieve_steps(req, forward))
+
+
 @app.post("/retrieve")
 def retrieve(req: RetrieveRequest) -> dict:
     """Returns {"question", "chunks": [{id, document_id, document_name, chunk_index, page, content, score}],
     "next_agents": [{endpoint, url, status, response} | {endpoint, url, error}, ...]}. Chunks are best
-    first; score is the reranker's relevance (0..1). {question, chunks} is what the next agents receive."""
-    return _run(_retrieve_steps(req))
+    first; score is the reranker's relevance (0..1). {question, chunks} is what the next agents receive.
+    Also status (failed = no passage matched) and summary, the platform's step result."""
+    return retrieve_result(req)
 
 
 @app.post("/retrieve/stream")

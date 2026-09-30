@@ -1,6 +1,6 @@
 /**
  * TypeScript mirror of backend/shared/agentkit/src/agentkit/contracts.py
- * and the orchestrator state (backend/orchestrator-agent/.../state.py).
+ * and the orchestrator state (backend/superviser-agent/.../state.py).
  */
 
 export type StepKind = 'agent' | 'hitl';
