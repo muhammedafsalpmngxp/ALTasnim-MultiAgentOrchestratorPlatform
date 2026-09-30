@@ -71,6 +71,8 @@ def make_progress(get_deps: DepsProvider):
                 "step": s.model_dump(),
                 "deps": {d: state["results"][d]["output"] for d in s.depends_on},
                 "attempt": replans,
+                # Which request of the chat this is: a new question gets new agent threads (run_agent).
+                "turn": sum(1 for m in state.get("messages", []) if m.type == "human"),
             })
             for s in ready
         ]
