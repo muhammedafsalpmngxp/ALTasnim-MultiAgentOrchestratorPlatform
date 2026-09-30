@@ -1,0 +1,83 @@
+@if (targets().length) {
+  <section class="vc" [attr.data-overall]="overall()">
+    <header class="vc__head">
+      <h3>Verification</h3>
+      @if (seconds()) {
+        <span class="vc__time" title="Time the output agents took to answer">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          {{ seconds() }}
+        </span>
+      }
+      @if (canRetry()) {
+        <button type="button" class="btn btn-sm vc__retry" [disabled]="retrying()" (click)="retry.emit(result().trace_id)"
+                title="Send another request to the output agents - no search, no LLM call">
+          {{ retrying() ? 'Sending…' : 'Send again' }}
+        </button>
+      }
+    </header>
+
+    <ul class="vc__list">
+      @for (t of targets(); track t.key) {
+        <li class="vc__item" [attr.data-outcome]="t.outcome">
+          <span class="vc__icon" aria-hidden="true">
+            @switch (t.outcome) {
+              @case ('passed') {
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10" /></svg>
+              }
+              @case ('failed') {
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+              }
+              @case ('sent') {
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14M13 6l6 6-6 6" /></svg>
+              }
+              @default {
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round"><path d="M12 7v6M12 17h.01" /></svg>
+              }
+            }
+          </span>
+
+          <div class="vc__body">
+            <div class="vc__title">
+              <strong>{{ t.label }}</strong>
+              <span class="vc__route">{{ t.route }}</span>
+            </div>
+            @if (t.summary && t.summary !== t.label) {
+              <p class="vc__summary">{{ t.summary }}</p>
+            }
+            @if (t.issues.length) {
+              <ul class="vc__notes vc__notes--issues">
+                @for (issue of t.issues; track $index) {
+                  <li>{{ issue }}</li>
+                }
+              </ul>
+            }
+            @if (t.warnings.length) {
+              <ul class="vc__notes vc__notes--warnings">
+                @for (warning of t.warnings; track $index) {
+                  <li>{{ warning }}</li>
+                }
+              </ul>
+            }
+            @if (t.reasons.length) {
+              <details class="vc__reasons">
+                <summary>Verifier's reasoning ({{ t.reasons.length }})</summary>
+                <ul>
+                  @for (j of t.reasons; track $index) {
+                    <li [class.vc__reason--bad]="!j.verified">{{ j.reason }}</li>
+                  }
+                </ul>
+              </details>
+            }
+          </div>
+
+          <span class="vc__badge">{{ t.outcome === 'passed' ? 'Passed' : t.outcome === 'failed' ? 'Failed' : t.label }}</span>
+        </li>
+      }
+    </ul>
+  </section>
+}

@@ -126,9 +126,40 @@ Hugging Face checks on every start, works offline. Another model: set `WEB_SEARC
 
 Every run is saved when its output is sent (`backend/web_search_agent/logs/checkpoints/<trace_id>.json`, git-ignored;
 newest 200 kept) - before sending, so a crash can be retried too. **Retry** - the button on the *Send output* step,
-on the result and in *Recent runs*, or `POST /custom/retry?trace_id=<id>` - sends another request to the output
+*Send again* on the Verification card, *Retry* in *Recent runs*, or `POST /custom/retry?trace_id=<id>` - sends another request to the output
 agents with that run: it rebuilds the top N contents (a changed `WEB_SEARCH_RESULT_TOP_N` applies) and sends them.
 No search, no page fetching, no reranking, no LLM call; works after a restart too.
+
+## UI (`frontend/agents/web_search_ui`, :4301)
+
+The agent page (standalone on :4301, or in the shell at `/agents/web-search`) - it only calls this deployment's
+routes:
+
+- **Header**: title, a *Connected / Offline · :8201* pill (from `GET /card`) and a **Light / Dark** theme button.
+  The first visit follows the system setting; the choice is then kept in the browser (`localStorage`,
+  `altasnim.web-search.theme`). The theme is scoped to this page, so the shell and the other agents' pages are not
+  affected.
+- **Try the agent**: query, freshness, top K. The processing flow is drawn live while the search streams.
+- **Result**: status, search provider, reranker, sources, total time; then the **Verification** card, the question,
+  the ranked evidence and the sources.
+- **Recent runs**: `GET /custom/history`, with a status badge and *Retry* per run.
+
+**Verification card** - what the output agents answered, read from the run details (no extra call):
+
+| Shown | From |
+|---|---|
+| **Passed** (green) / **Failed** (red) | `handoffs[url].passed` - the verifier's `{"passed": true/false}` |
+| **Delivered** (blue) | a route without a verdict, e.g. `/synthesize` |
+| **Not reachable** (amber) | `handoffs[url].status == "failed"` + the error |
+| **Not sent** / **Not configured** | no handoffs: the *Send output* step `failed` (e.g. `TargetNotFound`) / `skipped` (`WEB_SEARCH_VERIFIER_PATH` empty) |
+| time taken | the `verify` step's `duration_s` (all routes are called in parallel; a Retry updates it) |
+| route, summary, issues, warnings | `path @ host`, `summary`, `issues`, `warnings` |
+| *Verifier's reasoning* (collapsed) | `response.judgements[*].reason` (red when `verified: false`) |
+
+*Send again* on the card is the Retry above.
+
+Files: `web-search-page.ts` (page, theme), `web-search/verification-card/`, `web-search/result-panel/`,
+`web-search/search-console/`, `web-search/pipeline-flow/`, `web-search/evidence-card/`.
 
 ## Configuration (`backend/.env`, section `web_search_agent`)
 
@@ -156,6 +187,7 @@ Every key starts with `WEB_SEARCH_` (see `settings.py`). Main ones:
 | `WEB_SEARCH_RESULT_TOP_N` | `3` | contents in the step result |
 | `WEB_SEARCH_VERIFIER_PATH` | – | POST routes to send the output to, e.g. `/verify,/synthesize` |
 | `WEB_SEARCH_VERIFIER_PORT` | `8203` | port(s) they are looked for on, e.g. `8203,8230` |
+| `WEB_SEARCH_DISCOVERY_SUBNETS` | this machine's /24 | networks to search, e.g. `192.168.1.0/24` - **required in Docker** |
 | `WEB_SEARCH_RERANKER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | downloaded once to `models/`; BM25 fallback |
 
 `sample` never downloads pages or the reranker, so CI and the orchestrator's tests run offline.
@@ -205,14 +237,33 @@ Or as part of the platform: `docker compose up --build web-search-agent` (from `
 (`Dockerfile`, build context `backend/`) has only this agent's dependencies with CPU-only torch; build args
 `TORCH_INDEX_URL` (e.g. a CUDA wheel index) and `PLAYWRIGHT=true` (Chromium for JS pages). `models/` (the reranker)
 and `logs/` (saved runs for Retry) are mounted from this folder, so the model is downloaded once and Retry works after
-a restart. Inside the container "this machine's network" is Docker's network: set `WEB_SEARCH_DISCOVERY_SUBNETS`
-(e.g. `192.168.1.0/24`) so the output reaches the verifier / synthesizer machines on your LAN.
+a restart.
+
+**Sending the output from Docker**: inside the container "this machine's network" is Docker's own bridge network
+(e.g. `172.18.0.0/24`), not your LAN - the container cannot see the host's IP. Without a subnet the log shows
+`✗ Send output  TargetNotFound: no machine with /verify on port 8203 in 172.18.0.0/24`. Set your LAN in `backend/.env`
+(uncommented):
+
+```
+WEB_SEARCH_DISCOVERY_SUBNETS=192.168.1.0/24      # several: 192.168.1.0/24,172.18.0.0/24
+```
+
+then recreate the container (from the folder you started compose in) - a plain `restart` or rebuild keeps the old
+environment:
+
+```powershell
+docker compose up -d --force-recreate web-search-agent
+docker exec altasnim-agents-web-search-agent-1 sh -c "env | grep DISCOVERY"   # check
+```
+
+Add Docker's network too (second example) when the verifier runs as a container of the same compose.
 
 - Card (orchestrator discovery): http://127.0.0.1:8201/card · health: http://127.0.0.1:8201/custom/health
 - Studio: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:8201
 
-Routes for the UI (`api.py`, via `/api/agents/web-search/*`): `POST /custom/search/stream` (SSE: `steps`, `step`…,
-`result`), `GET /custom/history`, `GET /custom/sources[?trace_id=]`, `GET /custom/health`.
+Routes for the UI (`api.py`, via `/api/agents/web-search/*`): `GET /card`, `POST /custom/search/stream` (SSE: `steps`,
+`step`…, `result`), `POST /custom/retry?trace_id=`, `GET /custom/history`, `GET /custom/sources[?trace_id=]`,
+`GET /custom/health`.
 
 ## Test
 
