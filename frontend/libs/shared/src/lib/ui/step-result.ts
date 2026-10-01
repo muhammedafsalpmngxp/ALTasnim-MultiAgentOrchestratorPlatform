@@ -12,12 +12,14 @@ import { StatusBadge } from './status-badge';
   imports: [NgComponentOutlet, JsonView, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="result">
-      <div class="row">
-        <code>{{ result().step_id }}</code>
-        <strong>{{ result().agent }}</strong>
-        <alt-status-badge [status]="result().status" />
-      </div>
+    <div class="result" [class.bare]="!header()">
+      @if (header()) {
+        <div class="row">
+          <code>{{ result().step_id }}</code>
+          <strong>{{ result().agent }}</strong>
+          <alt-status-badge [status]="result().status" />
+        </div>
+      }
       @if (view(); as component) {
         <ng-container *ngComponentOutlet="component; inputs: { result: result().output }" />
       } @else {
@@ -28,11 +30,14 @@ import { StatusBadge } from './status-badge';
   `,
   styles: `
     .result { border-top: 1px solid var(--border); padding: 10px 0; }
+    .result.bare { border-top: 0; padding: 0; }
     .summary { white-space: pre-wrap; margin: 6px 0; }
   `,
 })
 export class StepResult {
   readonly result = input.required<AgentResult>();
+  /** Show the step id / agent / status row (off when the caller shows them itself). */
+  readonly header = input(true);
   private readonly loader = inject(AGENT_WIDGET_LOADER, { optional: true });
   protected readonly view = signal<Type<unknown> | null>(null);
 

@@ -10,6 +10,8 @@
    parent folders by location, so collecting ``web_search_agent/tests`` would register the folder as an empty
    ``web_search_agent`` namespace package and hide the real one. Importing the real package first puts it in
    ``sys.modules`` and pytest reuses it.
+3. Tests never read or write the supervisor's ``data/agent_overrides.yaml`` (planning text customised in the admin
+   console on this machine): ``AGENT_OVERRIDES_FILE`` points at a temporary file for every test.
 """
 
 import os
@@ -27,3 +29,8 @@ def _ignore_live_web_search_settings(monkeypatch):
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _own_agent_overrides_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_OVERRIDES_FILE", str(tmp_path / "agent_overrides.yaml"))  # see 3.

@@ -19,6 +19,13 @@ function pickedTheme(): Theme | null {
 
 const systemDark = () => matchMedia('(prefers-color-scheme: dark)');
 
+/** Not picked on this page: the platform's theme (<html data-theme>, set by the shell), else the system's. */
+function defaultTheme(): Theme {
+  const platform = document.documentElement.dataset['theme'];
+  if (platform === 'light' || platform === 'dark') return platform;
+  return systemDark().matches ? 'dark' : 'light';
+}
+
 /** During our theme switch only: replace the default cross-fade with the circular reveal (animated in code). */
 function ensureRevealStyle(): void {
   if (document.getElementById('rag-theme-reveal')) return;
@@ -277,20 +284,25 @@ export class IngestionPage {
   protected readonly online = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly time = seconds;
-  protected readonly theme = signal<Theme>(pickedTheme() ?? (systemDark().matches ? 'dark' : 'light'));
+  protected readonly theme = signal<Theme>(pickedTheme() ?? defaultTheme());
   protected readonly fading = signal(false);
   private readonly cdr = inject(ChangeDetectorRef);
   private reveal?: ViewTransition; // the running theme switch
 
   constructor() {
     void this.load();
-    // until the user picks a theme, follow the system's
+    // until the user picks a theme here, follow the platform's (the shell's theme switch), else the system's
     const media = systemDark();
-    const follow = (e: MediaQueryListEvent) => {
-      if (!pickedTheme()) this.theme.set(e.matches ? 'dark' : 'light');
+    const follow = () => {
+      if (!pickedTheme()) this.theme.set(defaultTheme());
     };
+    const platform = new MutationObserver(follow);
+    platform.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     media.addEventListener('change', follow);
-    inject(DestroyRef).onDestroy(() => media.removeEventListener('change', follow));
+    inject(DestroyRef).onDestroy(() => {
+      media.removeEventListener('change', follow);
+      platform.disconnect();
+    });
   }
 
   /**

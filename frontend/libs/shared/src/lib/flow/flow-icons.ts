@@ -10,6 +10,7 @@ export const FLOW_ICONS = {
   stop: 'M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2z M15 9l-6 6 M9 9l6 6',
   data: 'M12 8c4.97 0 9-1.34 9-3s-4.03-3-9-3-9 1.34-9 3 4.03 3 9 3z M21 12c0 1.66-4 3-9 3s-9-1.34-9-3 M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5',
   document: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8',
+  spark: 'M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z',
   agent:
     'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.27 6.96 12 12.01l8.73-5.05 M12 22.08V12',
 } as const;
@@ -24,5 +25,6 @@ export function iconForAgent(agent: string): FlowIcon {
   if (/verif|check|valid|judge|review/.test(name)) return 'verify';
   if (/data|sql|db|analytic|report/.test(name)) return 'data';
   if (/doc|file|pdf|rag/.test(name)) return 'document';
+  if (/synth|answer|summar|writ/.test(name)) return 'spark';
   return 'agent';
 }

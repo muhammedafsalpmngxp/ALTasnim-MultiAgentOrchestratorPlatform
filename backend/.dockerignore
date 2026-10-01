@@ -16,3 +16,5 @@ README.md
 # web_search_agent: the reranker model and saved runs are volumes, not image content
 web_search_agent/models
 web_search_agent/logs
+# superviser-agent: planning text customised in the admin console is a volume, not image content
+superviser-agent/data

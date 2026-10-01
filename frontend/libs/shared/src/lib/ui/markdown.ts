@@ -7,7 +7,7 @@ const inline = (s: string) =>
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
 /**
- * The little Markdown the next agents write (paragraphs, **bold**, `code`, - and 1. lists, # headings) as HTML.
+ * The little Markdown the agents write (paragraphs, **bold**, `code`, - and 1. lists, # headings) as HTML.
  * The text is HTML-escaped first, so an answer can never inject markup.
  */
 export function markdownToHtml(text: string): string {

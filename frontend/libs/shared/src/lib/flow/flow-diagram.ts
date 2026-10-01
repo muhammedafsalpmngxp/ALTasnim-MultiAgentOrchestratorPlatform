@@ -19,6 +19,8 @@ import { FlowPhase, buildFlow } from './flow-model';
 interface DrawnEdge {
   d: string;
   cls: string;
+  /** Data is flowing along it: its target is running or waiting (animated dots). */
+  flowing: boolean;
   marker: 'active' | 'idle' | 'ok' | 'danger';
   label?: string;
   lx: number;
@@ -28,7 +30,8 @@ interface DrawnEdge {
 /**
  * Live flow of a multi-agent run, in stages (Input → Routing → Parallelization → Reflection →
  * Human-in-the-loop → Output). Columns and nodes come from the plan; edges are drawn in an SVG
- * overlay measured from the rendered nodes.
+ * overlay measured from the rendered nodes. Animated: nodes come in, the running node spins and its column
+ * lights up, data dots flow along the edge into it, finished edges draw in, done nodes pop their check.
  */
 @Component({
   selector: 'alt-flow-diagram',
@@ -74,6 +77,11 @@ export class FlowDiagram {
     inject(DestroyRef).onDestroy(() => resize.disconnect());
   }
 
+  /** A column with a node at work (running / waiting): its band lights up. */
+  protected isLive(nodes: { state: string }[]): boolean {
+    return nodes.some((n) => n.state === 'running' || n.state === 'waiting');
+  }
+
   private layout(): void {
     const root = this.track().nativeElement;
     const box = root.getBoundingClientRect();
@@ -83,6 +91,7 @@ export class FlowDiagram {
       pos.set(el.dataset['node']!, { l: r.left - box.left, r: r.right - box.left, y: r.top - box.top + r.height / 2 });
     });
 
+    const states = new Map(this.graph().columns.flatMap((c) => c.nodes.map((n) => [n.id, n.state] as const)));
     const drawn: DrawnEdge[] = [];
     for (const e of this.graph().edges) {
       const a = pos.get(e.from);
@@ -94,6 +103,7 @@ export class FlowDiagram {
       drawn.push({
         d: `M ${x1} ${a.y} C ${x1 + dx} ${a.y}, ${x2 - dx} ${b.y}, ${x2} ${b.y}`,
         cls: [e.active ? 'active' : 'idle', e.tone ?? '', e.dashed ? 'dashed' : ''].join(' ').trim(),
+        flowing: !e.dashed && states.get(e.from) === 'done' && ['running', 'waiting'].includes(states.get(e.to) ?? ''),
         marker: e.tone === 'danger' ? 'danger' : e.tone === 'ok' && e.active ? 'ok' : e.active ? 'active' : 'idle',
         label: e.label,
         lx: (x1 + x2) / 2,

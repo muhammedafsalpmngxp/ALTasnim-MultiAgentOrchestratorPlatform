@@ -2,8 +2,28 @@ import { Injectable, inject } from '@angular/core';
 import { Client, type Thread } from '@langchain/langgraph-sdk';
 
 import { ORCHESTRATOR_API, ORCHESTRATOR_ASSISTANT } from './config';
-import { AgentCard, OrchestratorValues, ThreadStatus, ThreadSummary } from './models';
+import {
+  AgentAdmin,
+  AgentAdminAction,
+  AgentCard,
+  AuditEntry,
+  OrchestratorValues,
+  PlatformAdmin,
+  PlatformPolicies,
+  PlanningText,
+  ThreadStatus,
+  ThreadSummary,
+} from './models';
 import { RunSession, firstInterrupt } from './run-session';
+
+/** The supervisor's error: FastAPI's detail, a 422's list as "field: message; …", else the status. */
+async function failure(res: Response, what: string): Promise<Error> {
+  const body = await res.json().catch(() => null);
+  const detail = Array.isArray(body?.detail)
+    ? body.detail.map((d: { loc?: (string | number)[]; msg?: string }) => `${d.loc?.slice(1).join('.') || 'body'}: ${d.msg}`).join('; ')
+    : body?.detail;
+  return new Error(detail || `${what} failed: ${res.status}`);
+}
 
 function toSummary(thread: Thread): ThreadSummary {
   return {
@@ -78,6 +98,58 @@ export class OrchestratorService {
   async policies(): Promise<Record<string, unknown>> {
     const res = await fetch(`${this.apiUrl}/platform/policies`);
     if (!res.ok) throw new Error(`GET /platform/policies failed: ${res.status}`);
+    return res.json();
+  }
+
+  /** Every agent with its port, graph, machine, status and card (custom route /platform/admin/agents). */
+  async adminAgents(): Promise<PlatformAdmin> {
+    const res = await fetch(`${this.apiUrl}/platform/admin/agents`);
+    if (!res.ok) throw new Error(`GET /platform/admin/agents failed: ${res.status}`);
+    return res.json();
+  }
+
+  /** Change the policies now (validated by the supervisor; the error says which value is out of range). */
+  async updatePolicies(policies: PlatformPolicies): Promise<PlatformPolicies> {
+    const res = await fetch(`${this.apiUrl}/platform/admin/policies`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(policies),
+    });
+    if (!res.ok) throw await failure(res, 'PUT /platform/admin/policies');
+    return res.json();
+  }
+
+  /** Back to config/policies.yaml. */
+  async resetPolicies(): Promise<PlatformPolicies> {
+    const res = await fetch(`${this.apiUrl}/platform/admin/policies/reset`, { method: 'POST' });
+    if (!res.ok) throw new Error(`POST /platform/admin/policies/reset failed: ${res.status}`);
+    return res.json();
+  }
+
+  /** Every admin action of the supervisor's lifetime, newest first. */
+  async adminAudit(): Promise<AuditEntry[]> {
+    const res = await fetch(`${this.apiUrl}/platform/admin/audit`);
+    if (!res.ok) throw new Error(`GET /platform/admin/audit failed: ${res.status}`);
+    return res.json();
+  }
+
+  /** recheck (search the network again) | pause (leave out of planning) | resume. Returns the agent's new status. */
+  async adminAction(agent: string, action: AgentAdminAction): Promise<AgentAdmin> {
+    const res = await fetch(`${this.apiUrl}/platform/admin/agents/${encodeURIComponent(agent)}/${action}`, { method: 'POST' });
+    if (!res.ok) throw await failure(res, `POST ${action}`);
+    this.cardsCache = null; // paused / resumed agents change what the flow diagram shows
+    return res.json();
+  }
+
+  /** Customise what the supervisor reads when it chooses this agent (a field left out is the agent's own). Saved
+   *  on the supervisor's machine; used from the next question. ``null``: back to the agent's own card. */
+  async customiseAgent(agent: string, text: Partial<PlanningText> | null): Promise<AgentAdmin> {
+    const url = `${this.apiUrl}/platform/admin/agents/${encodeURIComponent(agent)}/planning`;
+    const res = text
+      ? await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(text) })
+      : await fetch(url, { method: 'DELETE' });
+    if (!res.ok) throw await failure(res, text ? 'Saving the planning text' : 'Resetting the planning text');
+    this.cardsCache = null;
     return res.json();
   }
 }

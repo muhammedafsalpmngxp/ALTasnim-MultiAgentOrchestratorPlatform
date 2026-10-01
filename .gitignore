@@ -33,6 +33,9 @@ htmlcov/
 # ---- LangGraph -------------------------------------------------------
 .langgraph_api/
 
+# ---- supervisor: agent planning text customised in the admin console (per machine) ----
+backend/superviser-agent/data/
+
 # ---- Node / Angular --------------------------------------------------
 node_modules/
 .angular/

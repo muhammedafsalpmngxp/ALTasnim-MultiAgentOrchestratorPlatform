@@ -1,0 +1,60 @@
+<div class="stage" [class.has-plan]="!!plan()">
+  <svg class="beams" aria-hidden="true">
+    @for (e of layout().edges; track e.key) {
+      <path [attr.d]="e.d" [attr.class]="'beam ' + e.state"
+            [attr.pathLength]="e.state === 'idle' || e.state === 'loop' ? null : 100" />
+      @if (e.state === 'flow') {
+        <circle class="packet" r="4.5">
+          <animateMotion dur="1.5s" repeatCount="indefinite" [attr.path]="e.d" />
+        </circle>
+        <circle class="packet trail" r="3">
+          <animateMotion dur="1.5s" begin="0.75s" repeatCount="indefinite" [attr.path]="e.d" />
+        </circle>
+      }
+      @if (e.state === 'loop') {
+        <!-- the rejection travels back to the supervisor -->
+        <circle class="packet back" r="5.5">
+          <animateMotion dur="1.2s" repeatCount="indefinite" [attr.path]="e.d" />
+        </circle>
+        <text class="loop-label" [attr.x]="e.lx" [attr.y]="e.ly">rejected · replanning</text>
+      }
+    }
+  </svg>
+
+  @for (n of layout().nodes; track n.key) {
+    <div class="node" animate.leave="leaving" [animate.enter]="n.fly ? '' : 'entering'"
+         [class.fly]="n.fly" [class.small]="n.small"
+         [attr.data-kind]="n.kind" [attr.data-state]="n.state"
+         [style.--x]="n.x + 'px'" [style.--y]="n.y + 'px'" [style.--fx]="n.fx + 'px'" [style.--fy]="n.fy + 'px'"
+         [style.--d]="n.drift + 's'" [title]="n.label + ' · ' + n.sub">
+      <div class="float">
+        <div class="orb">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="n.icon" /></svg>
+          @switch (n.state) {
+            @case ('done') { <span class="mark ok">✓</span> }
+            @case ('failed') { <span class="mark bad">!</span> }
+            @case ('rejected') { <span class="mark bad">✕</span> }
+            @case ('waiting') { <span class="mark wait">…</span> }
+          }
+        </div>
+        <div class="label">{{ n.label }}</div>
+        <div class="sub">{{ n.sub }}</div>
+      </div>
+    </div>
+  }
+
+  @if (phase() === 'idle' && !request()) {
+    <div class="hint">
+      <span>Ask a question: the supervisor picks the agents and runs them.</span>
+      <button class="btn btn-sm btn-primary" type="button" (click)="ask.emit()">Ask the Assistant</button>
+    </div>
+  }
+
+  <div class="legend" aria-hidden="true">
+    <span><i class="lg running"></i>running</span>
+    <span><i class="lg done"></i>done</span>
+    <span><i class="lg waiting"></i>waiting</span>
+    <span><i class="lg failed"></i>failed</span>
+    <span><i class="lg bench"></i>not needed</span>
+  </div>
+</div>

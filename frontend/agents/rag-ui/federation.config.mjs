@@ -8,6 +8,7 @@ export default withNativeFederation({
 
   exposes: {
     './Routes': './agents/rag-ui/src/app/app.routes.ts',
+    './Widget': './agents/rag-ui/src/app/widget/index.ts',
   },
 
   shared: fromPackageJson({

@@ -1,11 +1,12 @@
 <div class="scroller">
   <div class="track" #track>
     @for (col of graph().columns; track col.key; let i = $index) {
-      <section class="column" [class.alt]="i % 2 === 1">
-        <header class="stage">{{ i + 1 }}. {{ col.stage }}</header>
+      <section class="column" [class.alt]="i % 2 === 1" [class.live]="isLive(col.nodes)">
+        <header class="stage"><span class="num">{{ i + 1 }}</span>{{ col.stage }}</header>
         <div class="nodes">
-          @for (node of col.nodes; track node.id) {
-            <div class="node" [attr.data-state]="node.state" [attr.data-kind]="node.kind" [class.policy]="node.policy">
+          @for (node of col.nodes; track node.id; let j = $index) {
+            <div class="node" [attr.data-state]="node.state" [attr.data-kind]="node.kind" [class.policy]="node.policy"
+                 [style.--i]="i + j">
               <div class="tile" [attr.data-node]="node.id" [attr.title]="node.sub">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="icons[node.icon]" /></svg>
                 @switch (node.state) {
@@ -39,7 +40,11 @@
         }
       </defs>
       @for (e of edges(); track $index) {
-        <path [attr.d]="e.d" [attr.class]="'edge ' + e.cls" [attr.marker-end]="'url(#arrow-' + e.marker + ')'" />
+        <path [attr.d]="e.d" [attr.class]="'edge ' + e.cls" [attr.marker-end]="'url(#arrow-' + e.marker + ')'"
+              [attr.pathLength]="e.cls.includes('dashed') ? null : 100" />
+        @if (e.flowing) {
+          <path [attr.d]="e.d" class="flow" />
+        }
         @if (e.label) {
           <text [attr.x]="e.lx" [attr.y]="e.ly" [attr.class]="'edge-label ' + e.cls">{{ e.label }}</text>
         }

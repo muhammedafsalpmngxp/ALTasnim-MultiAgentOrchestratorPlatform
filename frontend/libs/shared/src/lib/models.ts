@@ -81,6 +81,73 @@ export interface AgentCard {
   owner: string;
 }
 
+/* ---- admin view of every agent (GET /platform/admin/agents) ---- */
+
+/** up | down (found, card failed) | not_found (no machine on the network) | paused | in_process | disabled (not a node) */
+export type AgentAdminStatus = 'up' | 'down' | 'not_found' | 'paused' | 'in_process' | 'disabled';
+
+export interface AgentAdmin {
+  name: string;
+  /** A node of the supervisor graph (enabled in config/agents.*.yaml). */
+  node: boolean;
+  port: number | null;
+  graph_id: string | null;
+  /** AGENT_<NAME>_URL: a fixed machine instead of the network search. */
+  pinned_url: string | null;
+  status: AgentAdminStatus;
+  reachable: boolean;
+  paused: boolean;
+  /** The machine it was found on, e.g. http://192.168.1.34:8000. */
+  url: string | null;
+  latency_ms: number | null;
+  /** Unix seconds of the last check. */
+  checked_at: number | null;
+  error: string | null;
+  /** The card the supervisor plans with (its own, with the customised planning text over it). */
+  card: AgentCard | null;
+  /** Planning text customised in the admin console (saved on the supervisor's machine). */
+  overrides: Partial<PlanningText>;
+  /** The agent's own planning text (what a reset goes back to); null until its card was fetched once. */
+  planning_defaults: PlanningText | null;
+}
+
+/** The fields of a card the supervisor reads when it chooses agents (customisable per agent). */
+export interface PlanningText {
+  description: string;
+  when_to_use: string;
+  when_not_to_use: string;
+  examples: string[];
+}
+
+export interface PlatformAdmin {
+  supervisor: { port: number; graph_id: string };
+  transport: string;
+  subnet: string | null;
+  agents: AgentAdmin[];
+}
+
+export type AgentAdminAction = 'recheck' | 'pause' | 'resume';
+
+/** The supervisor's safety rules (config/policies.yaml; an admin can change them at runtime). */
+export interface PlatformPolicies {
+  max_steps: number;
+  max_replans: number;
+  max_clarifications: number;
+  verify_before_approval: boolean;
+  verify_before_synthesis: boolean;
+  verify_final: boolean;
+  allowed_email_domains: string[];
+}
+
+/** One admin action (GET /platform/admin/audit), newest first. */
+export interface AuditEntry {
+  at: string;
+  action: string;
+  target: string;
+  detail: string;
+  by: string;
+}
+
 /* ---- interrupts raised by the orchestrator (what the human must answer) ---- */
 
 export interface ClarificationInterrupt {

@@ -11,8 +11,9 @@ import {
   viewChild,
 } from '@angular/core';
 
+import { markdownToHtml } from '@altasnim/shared';
+
 import { NextAgentResult, RetrievedChunk, RetrieveResponse, errorText, request, stream } from './api';
-import { markdownToHtml } from './format';
 import { ProgressSteps, RETRIEVE_STEPS, Step, applyEvent, failSteps, seconds } from './progress';
 
 type NextResult = NextAgentResult & { retrying?: boolean };

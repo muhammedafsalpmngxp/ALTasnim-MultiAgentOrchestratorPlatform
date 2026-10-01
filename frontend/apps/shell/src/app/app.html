@@ -1,36 +1,75 @@
-<div class="layout">
-  <aside class="sidebar">
-    <div class="brand">
-      <span class="logo" aria-hidden="true">◆</span>
-      <div>
-        <div class="name">ALTasnim</div>
-        <div class="sub muted">Agent Orchestrator</div>
-      </div>
-    </div>
+<div class="layout" [class.chat-open]="chatOpen()" [class.collapsed]="collapsed()" [class.animate]="animate()">
+  <aside class="sidebar" aria-label="Main navigation">
+    <a class="brand" routerLink="/flow" title="ALTasnim Agent Orchestrator">
+      <span class="mark"><alt-icon name="logo" [size]="18" [stroke]="2" /></span>
+      <span class="brand-text">
+        <strong>ALTasnim</strong>
+        <span>Agent Orchestrator</span>
+      </span>
+    </a>
 
     <nav>
-      <div class="section muted">Platform</div>
-      @for (link of platformLinks; track link.path) {
-        <a [routerLink]="link.path" routerLinkActive="active">
-          <span>{{ link.label }}</span>
-          @if (link.path === '/approvals' && pending() > 0) {
-            <span class="count">{{ pending() }}</span>
-          }
-        </a>
-      }
-      <div class="section muted">Agents</div>
-      @for (link of agentLinks; track link.path) {
-        <a [routerLink]="link.path" routerLinkActive="active">{{ link.label }}</a>
+      @for (section of sections; track section.title) {
+        <div class="section"><span>{{ section.title }}</span></div>
+        @for (link of section.links; track link.path) {
+          <a [routerLink]="link.path" routerLinkActive="active" [title]="collapsed() ? link.label : ''">
+            <alt-icon [name]="link.icon" />
+            <span class="label">{{ link.label }}</span>
+            @if (link.path === '/approvals' && pending() > 0) {
+              <span class="count">{{ pending() }}</span>
+            }
+          </a>
+        }
       }
     </nav>
 
-    <div class="status muted">
-      <span class="dot" [class.up]="backendUp()"></span>
-      {{ backendUp() ? 'Orchestrator connected' : 'Orchestrator offline (:8100)' }}
+    <div class="foot">
+      <div class="status" [title]="backendUp() ? 'Supervisor connected (:8100)' : 'Supervisor offline (:8100)'">
+        <span class="dot" [class.up]="backendUp()"></span>
+        <span class="label">{{ backendUp() ? 'Supervisor connected' : 'Supervisor offline' }}</span>
+      </div>
+      <button class="nav-btn" type="button" (click)="collapsed.update((c) => !c)"
+              [title]="collapsed() ? 'Expand the menu' : 'Collapse the menu'">
+        <alt-icon [name]="collapsed() ? 'expand' : 'collapse'" />
+        <span class="label">Collapse</span>
+      </button>
     </div>
   </aside>
 
-  <main class="content">
-    <router-outlet />
-  </main>
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        @if (here(); as h) {
+          <span class="crumb-section">{{ h.section }}</span>
+          <alt-icon name="chevron" [size]="14" />
+          <strong>{{ h.link.label }}</strong>
+        } @else {
+          <strong>ALTasnim</strong>
+        }
+      </div>
+      <span class="spacer"></span>
+      <span class="env" [class.prod]="environment === 'Production'">{{ environment }}</span>
+      <button class="icon-btn" type="button" (click)="nextTheme()" [title]="themeLabel()" [attr.aria-label]="themeLabel()">
+        <alt-icon [name]="themeIcon()" />
+      </button>
+      <button class="assistant" type="button" [class.on]="chatOpen()" (click)="chatOpen.update((o) => !o)"
+              [attr.aria-pressed]="chatOpen()">
+        <alt-icon name="chat" [size]="17" />
+        <span>Assistant</span>
+        @if (!chatOpen() && chatAttention()) {
+          <span class="ping" aria-label="A run needs attention"></span>
+        }
+      </button>
+      <div class="user" title="Signed in as the development user (AUTH_MODE=dev)">
+        <span class="avatar">DV</span>
+        <span class="who"><strong>Developer</strong><span>dev mode</span></span>
+      </div>
+    </header>
+
+    <main class="content">
+      <router-outlet />
+    </main>
+  </div>
+
+  <alt-chat-widget [(open)]="chatOpen" />
 </div>

@@ -58,6 +58,8 @@ services:
     environment:
       ORCHESTRATOR_PORT: ${ORCHESTRATOR_PORT:-8100}
       AGENT_TRANSPORT: remote
+    volumes:
+      - ./superviser-agent/data:/app/superviser-agent/data   # agent planning text customised in the admin console
 
   mailpit:
     image: axllent/mailpit:latest

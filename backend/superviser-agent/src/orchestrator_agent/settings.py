@@ -13,9 +13,11 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # backend/superviser-agent
 
 
 class Policies(BaseModel):
-    max_steps: int = 10
-    max_replans: int = 2
-    max_clarifications: int = 2
+    """Safety rules enforced by code (config/policies.yaml; an admin can change them at runtime)."""
+
+    max_steps: int = Field(10, ge=1, le=50)
+    max_replans: int = Field(2, ge=0, le=10)
+    max_clarifications: int = Field(2, ge=0, le=10)
     verify_before_approval: bool = True
     verify_before_synthesis: bool = True
     verify_final: bool = True

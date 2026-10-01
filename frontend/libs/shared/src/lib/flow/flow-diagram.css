@@ -5,21 +5,39 @@
 
 /* ---- stage columns (bands like the design reference) */
 .column {
+  position: relative;
   flex: 1 0 172px;
   display: flex;
   flex-direction: column;
   background: var(--flow-band-a);
   padding: 14px 8px 18px;
+  transition: background-color 0.4s ease;
 }
 .column.alt { background: var(--flow-band-b); }
+/* the stage at work glows */
+.column::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at 50% 55%, var(--info-soft), transparent 70%); transition: opacity 0.5s ease;
+}
+.column.live::after { opacity: 1; animation: breathe 2.4s ease-in-out infinite; }
 .stage {
-  text-align: center;
-  font-size: 13px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text-muted);
   margin-bottom: 12px;
   white-space: nowrap;
 }
+.stage .num {
+  display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  font-size: 11px; color: var(--primary); background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.column.live .stage { color: var(--primary); }
 .nodes {
   flex: 1;
   display: flex;
@@ -38,6 +56,8 @@
   align-items: center;
   text-align: center;
   width: 150px;
+  animation: node-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
 }
 .tile {
   position: relative;
@@ -49,8 +69,10 @@
   display: grid;
   place-items: center;
   border: 1.5px solid transparent;
-  transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+  transition: border-color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.2s;
 }
+.node:hover .tile { transform: translateY(-2px); }
+.node[data-kind='supervisor']:hover .tile { transform: rotate(45deg) translateY(-2px); }
 .icon {
   width: 24px;
   height: 24px;
@@ -83,12 +105,18 @@
 
 /* states */
 .node[data-state='idle'] { opacity: 0.55; }
-.node[data-state='queued'] .tile { border-color: var(--border); }
+.node[data-state='queued'] .tile { border-color: var(--border-strong, var(--border)); }
 .node[data-state='running'] .tile { border-color: var(--info); animation: pulse 1.4s ease-in-out infinite; }
-.node[data-state='waiting'] .tile { border-color: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+/* the running node: a spinning ring around its tile */
+.node[data-state='running'] .tile::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 16px; border: 2px solid transparent;
+  border-top-color: var(--info); border-right-color: var(--info); animation: spin 1s linear infinite;
+}
+.node[data-state='running'] .label { color: var(--info); }
+.node[data-state='waiting'] .tile { border-color: var(--warn); animation: wait 1.8s ease-in-out infinite; }
 .node[data-state='done'] .tile { border-color: var(--ok); }
 .node[data-state='failed'] .tile,
-.node[data-state='rejected'] .tile { border-color: var(--danger); }
+.node[data-state='rejected'] .tile { border-color: var(--danger); animation: shake 0.45s ease; }
 .node.policy .tile { border-style: dashed; }
 
 .mark {
@@ -104,6 +132,7 @@
   text-align: center;
   color: #fff;
 }
+.mark { animation: pop 0.4s cubic-bezier(0.3, 1.6, 0.6, 1) both; }
 .mark.ok { background: var(--ok); }
 .mark.bad { background: var(--danger); }
 .mark.wait { background: var(--warn); }
@@ -112,11 +141,23 @@
   0%, 100% { box-shadow: 0 0 0 0 var(--info-soft); }
   50% { box-shadow: 0 0 0 7px var(--info-soft); }
 }
+@keyframes wait { 0%, 100% { box-shadow: 0 0 0 2px var(--warn-soft); } 50% { box-shadow: 0 0 0 8px var(--warn-soft); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes shake { 0%, 100% { translate: 0; } 20%, 60% { translate: -4px 0; } 40%, 80% { translate: 4px 0; } }
+@keyframes node-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes march { to { stroke-dashoffset: -32; } }
 
 /* ---- edges */
 .edges { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: visible; }
 .edge { fill: none; stroke-width: 1.8; }
 .edge.active { stroke: var(--flow-edge); }
+/* an edge that becomes active draws itself in (pathLength 100) */
+.edge.active:not(.dashed) { stroke-dasharray: 100; animation: draw 0.7s ease-out both; }
+/* data flowing into the running node */
+.flow { fill: none; stroke: var(--info); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 14; animation: march 0.9s linear infinite; }
 .edge.idle { stroke: var(--flow-edge-idle); }
 .edge.ok.active { stroke: var(--ok); }
 .edge.danger { stroke: var(--danger); opacity: 0.45; }
@@ -149,5 +190,7 @@
 .box { width: 11px; height: 11px; border: 1.5px dashed var(--text-muted); border-radius: 3px; display: inline-block; }
 
 @media (prefers-reduced-motion: reduce) {
-  .node[data-state='running'] .tile { animation: none; }
+  .node, .mark, .edge.active:not(.dashed), .flow, .column.live::after,
+  .node[data-state='running'] .tile, .node[data-state='running'] .tile::after,
+  .node[data-state='waiting'] .tile, .node[data-state='failed'] .tile, .node[data-state='rejected'] .tile { animation: none; }
 }
