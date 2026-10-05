@@ -13,6 +13,7 @@ CARD = AgentCard(
         "Check the comparison covers both countries",
     ],
     approval_mode="none",
+    role="verifier",
     params_schema={"type": "object", "properties": {}},
     output_schema={
         "type": "object",

@@ -7,5 +7,6 @@ CARD = {
     "endpoint": "POST (or PUT/PATCH) on any path, e.g. /synthesize",
     "input": {"question": "the user's question", "inputs": "outputs of the earlier agents, any shape"},
     "output": {"status": "ok | failed", "summary": "the answer", "answer": "the answer", "sources": "URLs"},
+    "role": "final_answer",
     "owner": "team-synthesizer",
 }

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from orchestrator_agent import api
 from orchestrator_agent.clients import LocalAgentClient, RemoteAgentClient
 from orchestrator_agent.deps import Deps
-from orchestrator_agent.planning.rule_planner import RulePlanner
+from orchestrator_agent.planning.scripted import ScriptedSupervisor
 from orchestrator_agent.registry import AgentEntry, AgentRegistry, overrides
 from orchestrator_agent.settings import Policies
 from verifier_agent.card import CARD as VERIFIER
@@ -17,6 +17,7 @@ from utils.testing import build_stub_agent
 
 @pytest.fixture
 def client(monkeypatch):
+    monkeypatch.delenv("SUPERVISOR_LLM_MODEL", raising=False)
     searches = []
 
     def locate(refresh):  # rag: no machine on the network serves it
@@ -31,7 +32,7 @@ def client(monkeypatch):
         "verifier": local("verifier", VERIFIER),
         "rag": AgentEntry("rag", RemoteAgentClient(locate, "rag"), locate=locate),
     })
-    deps = Deps(registry=registry, planner=RulePlanner(), policies=Policies())
+    deps = Deps(registry=registry, supervisor=ScriptedSupervisor(lambda ctx: None), policies=Policies())
     monkeypatch.setattr(api, "default_deps", lambda: deps)
     test_client = TestClient(api.app)
     test_client.searches = searches
@@ -40,7 +41,7 @@ def client(monkeypatch):
 
 def test_admin_lists_every_configured_agent_with_port_graph_and_status(client):
     body = client.get("/platform/admin/agents").json()
-    assert body["supervisor"] == {"port": 8100, "graph_id": "orchestrator"}
+    assert body["supervisor"] == {"port": 8100, "graph_id": "orchestrator", "llm_model": None}
     rows = {r["name"]: r for r in body["agents"]}
     assert set(rows) == {"web_search", "rag", "verifier", "synthesizer", "communication"}  # config/agents.dev.yaml
     assert (rows["rag"]["port"], rows["rag"]["graph_id"], rows["rag"]["status"]) == (8000, "rag", "not_found")

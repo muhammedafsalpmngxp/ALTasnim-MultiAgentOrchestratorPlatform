@@ -1,6 +1,7 @@
-"""End-to-end flows through the real orchestrator graph with the real agent graphs
-(transport=local, in-memory checkpointers, no LLM, no network)."""
+"""End-to-end flows through the real orchestrator graph with the real agent graphs (transport=local, in-memory
+checkpointers, no network). The supervisor's decisions are scripted (what its LLM plans from the cards)."""
 
+import re
 import uuid
 
 import pytest
@@ -10,7 +11,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 from orchestrator_agent.deps import Deps
 from orchestrator_agent.graph import build_graph
-from orchestrator_agent.planning.rule_planner import RulePlanner
+from orchestrator_agent.planning.scripted import ScriptedSupervisor
 from orchestrator_agent.registry import AgentRegistry
 from orchestrator_agent.settings import Policies
 from verifier_agent.card import CARD as VERIFIER
@@ -18,13 +19,50 @@ from verifier_agent.graph import graph as verifier_graph
 from web_search_agent.card import CARD as SEARCH
 from web_search_agent.graph import graph as search_graph
 
+from utils import Plan, Step, SupervisorDecision
 from utils.testing import build_stub_agent
+
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def plan(goal, *items: dict) -> SupervisorDecision:
+    return SupervisorDecision(action="plan", reasoning="scripted",
+                              plan=Plan(goal=goal, steps=[Step(**s) for s in items]))
+
+
+def searches(*regions: str) -> list[dict]:
+    if not regions:
+        return [{"id": "s1", "agent": "web_search", "objective": "Find the price of iPhone"}]
+    return [{"id": f"s{i}", "agent": "web_search", "objective": f"Find the iPhone price in {r}",
+             "params": {"query": "iPhone price", "region": r}} for i, r in enumerate(regions, start=1)]
+
+
+def script(ctx):
+    """What the supervisor's LLM plans for these requests (search -> verify [-> email])."""
+    if ctx.review_reason == "complete":  # the run ended without a final_answer agent: the step summaries
+        return SupervisorDecision(action="finish")
+    text = " ".join([ctx.request, *ctx.clarifications])
+    if ctx.request == "hello":
+        return SupervisorDecision(action="answer", answer="Hi! I can search the web for you.")
+    wants_email = "mail" in ctx.request.lower()
+    emails = EMAIL_RE.findall(text)
+    if wants_email and not emails:
+        return SupervisorDecision(action="clarify", question="Who should I send it to?")
+    found = searches("Oman", "UAE") if "Compare" in ctx.request else searches()
+    ids = [s["id"] for s in found]
+    steps = [*found, {"id": "v1", "agent": "verifier", "objective": "Check the prices", "depends_on": ids}]
+    if wants_email:
+        steps.append({"id": "m1", "agent": "communication", "objective": f"Email the results to {emails[0]}",
+                      "params": {"channel": "email", "to": emails, "subject": "iPhone price"},
+                      "depends_on": [*ids, "v1"]})
+    return plan(ctx.request, *steps)
 
 
 def make_graph(**overrides):
     agents = {"web_search": (SEARCH, search_graph), "communication": (COMM, comm_graph),
               "verifier": (VERIFIER, verifier_graph), **overrides}
-    deps = Deps(registry=AgentRegistry.from_graphs(agents), planner=RulePlanner(), policies=Policies())
+    deps = Deps(registry=AgentRegistry.from_graphs(agents), supervisor=ScriptedSupervisor(script),
+                policies=Policies())
     return build_graph(deps=deps, checkpointer=InMemorySaver())
 
 
@@ -58,10 +96,10 @@ async def test_q1_price_question_search_then_verify():
     out = await graph.ainvoke({"request": "What is the price of iPhone?"}, cfg)
 
     assert "__interrupt__" not in out
-    assert [s["id"] for s in out["plan"]["steps"]] == ["s1", "v_final"]
+    assert [s["id"] for s in out["plan"]["steps"]] == ["s1", "v1"]
     assert out["results"]["s1"]["status"] == "ok"
-    assert out["results"]["v_final"]["output"]["passed"] is True
-    assert "web_search" in out["final"]
+    assert out["results"]["v1"]["output"]["passed"] is True
+    assert "web_search" in out["final"]  # no final_answer agent: the step summaries
     assert {v["status"] for v in out["step_status"].values()} == {"done"}
 
 
@@ -73,13 +111,13 @@ async def test_q2_price_then_email_waits_for_approval_then_sends_once(sent):
     pending = out["__interrupt__"][0].value
     assert pending["kind"] == "agent_approval" and pending["agent"] == "communication"
     assert pending["request"]["draft"]["to"] == ["rijin@gmail.com"]
-    assert out["results"]["v_s2"]["status"] == "ok"  # verified before the human sees it
+    assert out["results"]["v1"]["status"] == "ok"  # verified before the human sees it
     assert sent == []
 
     out = await graph.ainvoke(Command(resume={"action": "approve"}), cfg)
     assert "__interrupt__" not in out
     assert len(sent) == 1 and sent[0].to == ["rijin@gmail.com"]
-    assert out["results"]["s2"]["output"]["delivery"] == "sent"
+    assert out["results"]["m1"]["output"]["delivery"] == "sent"
     assert "sent to rijin@gmail.com" in out["final"]
 
 
@@ -118,7 +156,7 @@ async def test_missing_recipient_asks_user_then_continues(sent):
     assert sent[0].to == ["rijin@gmail.com"]
 
 
-async def test_failing_agent_triggers_replan_then_stops_at_limit():
+async def test_failing_agent_triggers_review_then_stops_at_limit():
     broken = build_stub_agent("web_search", {"status": "failed", "summary": "search backend down"})
     graph, cfg = make_graph(web_search=(SEARCH, broken)), new_thread()
     out = await graph.ainvoke({"request": "What is the price of iPhone?"}, cfg)
@@ -132,4 +170,4 @@ async def test_second_turn_on_same_thread_is_planned_fresh():
     await graph.ainvoke({"request": "What is the price of iPhone?"}, cfg)
     out = await graph.ainvoke({"request": "hello"}, cfg)
     assert out["plan"] is None and out["results"] == {}
-    assert "I can search the web" in out["final"]
+    assert out["final"] == "Hi! I can search the web for you."

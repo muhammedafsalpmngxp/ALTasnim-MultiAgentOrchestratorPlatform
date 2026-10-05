@@ -1,26 +1,26 @@
 r"""Supervisor (orchestrator) root graph. Every agent is a node of this graph.
 
-    START -> intake -> supervisor --answer--------------------------> respond -> END
+    START -> intake -> supervisor --answer / finish-----------------> respond -> END
                           |  ^  \--clarify--> clarify (interrupt) --^
                           |  |
-                        plan |replan
+                        plan |review (a step failed, a verifier rejected data, or no final answer yet)
                           v  |
                       plan_guard --> progress --Send--> web_search    --+
-                                        ^  \----Send--> communication --+   one node per agent in
+                                        ^  \----Send--> rag           --+   one node per agent in
                                         |   \---Send--> verifier      --+   config/agents.*.yaml;
                                         |    \--Send--> ...           --+   a wave runs in parallel
                                         |     \-Send--> hitl_gate     --+   (interrupt)
                                         +-------------------------------+
 
-The supervisor plans which agent nodes run, and in which order (the plan JSON); progress sends each
-step to its agent's node. An agent node runs the step on that agent: in-process, or on the agent's own
-LangGraph deployment (transport in config/agents.*.yaml).
+The supervisor's LLM reads the request and the agents' cards and writes the plan (state["plan"]): which agent
+nodes run, what each one gets, and in which order (depends_on). plan_guard checks that it can run; progress sends
+each ready step to its agent's node, in parallel waves. An agent node runs the step on that agent: in-process,
+or on the agent's own LangGraph deployment (transport in config/agents.*.yaml).
 """
 
 from __future__ import annotations
 
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import RetryPolicy
 
 from orchestrator_agent.deps import Deps, default_deps
 from orchestrator_agent.nodes.clarify import clarify
@@ -28,7 +28,7 @@ from orchestrator_agent.nodes.hitl_gate import hitl_gate
 from orchestrator_agent.nodes.intake import intake
 from orchestrator_agent.nodes.plan_guard import make_plan_guard
 from orchestrator_agent.nodes.progress import make_progress
-from orchestrator_agent.nodes.respond import respond
+from orchestrator_agent.nodes.respond import make_respond
 from orchestrator_agent.nodes.run_agent import make_run_agent
 from orchestrator_agent.nodes.supervisor import make_supervisor
 from orchestrator_agent.settings import load_agents_config
@@ -57,16 +57,16 @@ def build_graph(deps: Deps | None = None, checkpointer=None):
 
     builder = StateGraph(OrchestratorState, input_schema=OrchestratorInput, context_schema=RequestContext)
     builder.add_node("intake", intake)
-    builder.add_node("supervisor", make_supervisor(get_deps), retry_policy=RetryPolicy(max_attempts=3),
-                     destinations=("plan_guard", "clarify", "respond"))
+    # no RetryPolicy: the LLM client retries itself (SUPERVISOR_LLM_MAX_RETRIES); errors become a clear reply
+    builder.add_node("supervisor", make_supervisor(get_deps), destinations=("plan_guard", "clarify", "respond"))
     builder.add_node("clarify", clarify)
-    builder.add_node("plan_guard", make_plan_guard(get_deps), destinations=("progress", "supervisor", "respond"))
+    builder.add_node("plan_guard", make_plan_guard(get_deps), destinations=("progress", "respond"))
     builder.add_node("progress", make_progress(get_deps),
                      destinations=(*agents, "hitl_gate", "supervisor", "respond"))
     for name in agents:  # each agent is its own node; all share the step runner (nodes/run_agent.py)
         builder.add_node(name, make_run_agent(get_deps), metadata={"agent": name})
     builder.add_node("hitl_gate", hitl_gate)
-    builder.add_node("respond", respond)
+    builder.add_node("respond", make_respond(get_deps))
 
     builder.add_edge(START, "intake")
     builder.add_edge("intake", "supervisor")

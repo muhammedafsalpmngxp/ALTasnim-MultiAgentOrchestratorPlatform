@@ -218,6 +218,7 @@ def card() -> dict:
             "required": ["question"],
         },
         "output_schema": {"type": "object", "properties": {"status": {}, "summary": {}, "question": {}, "chunks": {}}},
+        "role": "source",
         "owner": "person-d",
     }
 

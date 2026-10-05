@@ -1,5 +1,8 @@
-{"request": "What is the price of iPhone?", "expected_agents": ["web_search"], "expected_edges": []}
-{"request": "check the price of iphone then share the mail to rijin@gmail.com", "expected_agents": ["web_search", "communication"], "expected_edges": [["web_search", "communication"]]}
-{"request": "Compare iPhone price in Oman and UAE and email it to rijin@gmail.com", "expected_agents": ["web_search", "web_search", "communication"], "expected_edges": [["web_search", "communication"]], "expected_parallel": [["web_search", "web_search"]]}
-{"request": "check the iPhone price and email it", "expected_action": "clarify"}
 {"request": "hello", "expected_action": "answer"}
+{"request": "What can you do?", "expected_action": "answer"}
+{"request": "What is the retention money in the contract?", "expected_action": "plan", "expected_agents": {"rag": 1, "verifier": 1, "synthesizer": 1}}
+{"request": "Who issues the pegging sheet according to the project rules?", "expected_action": "plan", "expected_agents": {"rag": 1, "verifier": 1, "synthesizer": 1}}
+{"request": "What is the current price of iPhone 16 in Oman?", "expected_action": "plan", "expected_agents": {"web_search": 1, "verifier": 1, "synthesizer": 1}}
+{"request": "What is the latest news about the Oman oil price today?", "expected_action": "plan", "expected_agents": {"web_search": 1, "verifier": 1, "synthesizer": 1}}
+{"request": "Compare the iPhone 16 price in Oman and UAE", "expected_action": "plan", "expected_agents": {"web_search": 2, "verifier": 1, "synthesizer": 1}, "expected_parallel": "web_search"}
+{"request": "What does our leave policy document say about annual leave, and how does it compare with the current UAE labour law?", "expected_action": "plan", "expected_agents": {"rag": 1, "web_search": 1, "verifier": 1, "synthesizer": 1}}

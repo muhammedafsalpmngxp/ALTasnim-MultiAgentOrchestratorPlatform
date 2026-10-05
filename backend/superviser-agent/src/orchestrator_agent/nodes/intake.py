@@ -32,5 +32,6 @@ def intake(state: OrchestratorState) -> dict:
         "replans": 0,
         "clarifications": [],
         "pending_question": None,
+        "review_reason": None,
         "final": None,
     }

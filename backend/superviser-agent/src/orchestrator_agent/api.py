@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI, HTTPException
 
 from orchestrator_agent.deps import default_deps
+from orchestrator_agent.llm import model_name
 from orchestrator_agent.registry import AgentRegistry, overrides
 from orchestrator_agent.registry.overrides import FIELDS, PlanningText
 from orchestrator_agent.settings import Policies, load_agents_config, load_policies
@@ -60,7 +61,9 @@ def admin_agents() -> dict:
         row = {"name": name, "node": name in nodes, "port": agent.port, "graph_id": agent.graph_id,
                "pinned_url": agent.url}
         rows.append({**row, **(registry.status(name) if name in nodes else _NOT_A_NODE)})
-    return {"supervisor": {"port": int(os.getenv("ORCHESTRATOR_PORT", "8100")), "graph_id": "orchestrator"},
+    supervisor = {"port": int(os.getenv("ORCHESTRATOR_PORT", "8100")), "graph_id": "orchestrator",
+                  "llm_model": model_name()}  # SUPERVISOR_LLM_MODEL; None: the supervisor cannot plan
+    return {"supervisor": supervisor,
             "transport": config.transport, "subnet": config.subnet or None, "agents": rows}
 
 

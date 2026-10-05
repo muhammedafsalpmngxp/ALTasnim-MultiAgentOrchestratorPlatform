@@ -14,6 +14,8 @@ export interface Step {
   depends_on: string[];
   after: string[];
   added_by: 'supervisor' | 'policy';
+  /** What a good result of this step looks like (written by the supervisor's LLM). */
+  expected_output?: string;
 }
 
 export interface Plan {
@@ -21,6 +23,8 @@ export interface Plan {
   version: number;
   goal: string;
   reasoning: string;
+  /** What "done" means; the supervisor reviews the results against it. */
+  success_criteria?: string[];
   steps: Step[];
 }
 
@@ -63,6 +67,8 @@ export interface OrchestratorValues {
   step_status?: Record<string, StepStatus>;
   feedback?: string[];
   replans?: number;
+  /** Why the supervisor was called again: 'failed' (a step failed / a verifier rejected data) | 'complete'. */
+  review_reason?: string | null;
   final?: string | null;
 }
 
@@ -76,6 +82,10 @@ export interface AgentCard {
   when_not_to_use: string;
   examples: string[];
   approval_mode: ApprovalMode;
+  /** source | transform | final_answer | verifier | action: how the supervisor uses the agent. */
+  role?: 'source' | 'transform' | 'final_answer' | 'verifier' | 'action' | null;
+  /** Sends or changes something outside the platform. */
+  side_effects?: boolean;
   params_schema: { properties?: Record<string, { description?: string; type?: string }> } & Record<string, unknown>;
   output_schema: Record<string, unknown>;
   owner: string;
@@ -120,7 +130,8 @@ export interface PlanningText {
 }
 
 export interface PlatformAdmin {
-  supervisor: { port: number; graph_id: string };
+  /** llm_model: SUPERVISOR_LLM_MODEL (null: the supervisor cannot plan). */
+  supervisor: { port: number; graph_id: string; llm_model?: string | null };
   transport: string;
   subnet: string | null;
   agents: AgentAdmin[];
@@ -133,6 +144,8 @@ export interface PlatformPolicies {
   max_steps: number;
   max_replans: number;
   max_clarifications: number;
+  /** How often the supervisor's LLM may fix a plan that cannot run. */
+  max_plan_repairs?: number;
   verify_before_approval: boolean;
   verify_before_synthesis: boolean;
   verify_final: boolean;

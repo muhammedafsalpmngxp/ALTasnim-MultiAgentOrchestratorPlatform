@@ -39,4 +39,7 @@ class OrchestratorState(OrchestratorInput, total=False):
     replans: int
     clarifications: list[str]
     pending_question: str | None
+    # Why progress called the supervisor again: "failed" (a step failed / a verifier rejected data) | "complete"
+    # (the run ended without a final answer). None in plan mode.
+    review_reason: str | None
     final: str | None

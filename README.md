@@ -8,7 +8,7 @@ Server deployment with its own folder, owner, port and Angular micro-frontend, s
 independently.
 
 ```
- request ─► Supervisor ──plan JSON──► plan_guard (policy) ─► progress ──Send──► agents (parallel waves) ─┐
+ request ─► Supervisor LLM ─plan JSON─► plan_guard (check) ─► progress ──Send──► agents (parallel waves) ─┐
               ▲  (Routing)                                    ▲                                          │
               └────────── replan on failure ──────────────────┴── verifier (Reflection) ◄────────────────┘
                                                                   human approval (HITL) ─► action ─► answer
@@ -186,7 +186,7 @@ diagram pick up new agents automatically.
 
 | Done | Next |
 |---|---|
-| Supervisor planning (rule-based offline planner; LLM planner ready) | Connect an LLM provider (`LLM_MODEL_*` in `backend/.env`) |
+| Supervisor v1: its LLM (`SUPERVISOR_LLM_MODEL`) plans the flow from the agent cards and reviews on failures | Supervisor v2: guardrails (inserted verifier / approval steps, step and email rules) |
 | Parallel execution, verification, replanning, human approval | Real web search provider (sample data today) |
 | 4 agent deployments, Docker Compose, 31 backend tests | Real email/Teams sending (console / Mailpit today) |
 | Angular micro-frontends with live flow diagram | JWT auth (`AUTH_MODE=jwt`), production Agent Server with Postgres/Redis |

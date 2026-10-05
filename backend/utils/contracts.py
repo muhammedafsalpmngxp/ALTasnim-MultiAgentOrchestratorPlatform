@@ -55,6 +55,18 @@ internal - the agent calls ``interrupt()`` itself (e.g. edit the email before
 gate     - the orchestrator inserts a ``hitl`` step before this agent runs.
 """
 
+AgentRole = Literal["source", "transform", "final_answer", "verifier", "action"]
+"""
+What kind of agent it is. The supervisor plans and answers by role, never by agent name, so a new agent with a
+role fits the flow without changes to the supervisor.
+
+source       - finds facts (documents, the web, a database), e.g. rag, web_search.
+transform    - changes the outputs of earlier steps (translate, convert, extract).
+final_answer - writes the ONE final answer from the earlier steps; its answer is the reply, e.g. synthesizer.
+verifier     - checks the outputs of earlier steps, e.g. verifier.
+action       - does something outside the platform (email, ticket, publish), e.g. communication.
+"""
+
 
 class AgentCard(BaseModel):
     """Self-description of an agent. The supervisor plans from these cards.
@@ -71,6 +83,9 @@ class AgentCard(BaseModel):
     when_not_to_use: str
     examples: list[str] = Field(default_factory=list)
     approval_mode: ApprovalMode = "none"
+    role: AgentRole | None = None
+    # Sends or changes something outside the platform (email, ticket, publish).
+    side_effects: bool = False
     params_schema: dict[str, Any] = Field(default_factory=lambda: {"type": "object"})
     output_schema: dict[str, Any] = Field(default_factory=lambda: {"type": "object"})
     owner: str = "unassigned"
@@ -106,6 +121,7 @@ class Step(BaseModel):
         description="Ordering-only dependencies added by policy (verifier / approval). Outputs are NOT passed.",
     )
     added_by: Literal["supervisor", "policy"] = "supervisor"
+    expected_output: str = Field("", description="What a good result of this step looks like.")
 
 
 class Plan(BaseModel):
@@ -113,14 +129,23 @@ class Plan(BaseModel):
     version: int = 1
     goal: str
     reasoning: str = ""
+    # What "done" means; the supervisor checks the results against it when it reviews the run.
+    success_criteria: list[str] = Field(default_factory=list)
     steps: list[Step]
 
 
 class SupervisorDecision(BaseModel):
-    """Structured output of the supervisor."""
+    """What the supervisor decided (from its LLM's structured output).
 
-    action: Literal["answer", "clarify", "plan"]
-    reasoning: str = ""
+    plan mode (a new request):  answer | clarify | plan
+    review mode (a step failed, a verifier rejected, or the run ended without a final answer):
+                                finish | plan (revised) | clarify | answer
+    """
+
+    action: Literal["answer", "clarify", "plan", "finish"]
+    understanding: str = ""  # the user's goal in one sentence
+    needs: list[str] = Field(default_factory=list)  # what is needed to satisfy it
+    reasoning: str = ""  # which agents, why, in which order
     answer: str | None = None
     question: str | None = None
     plan: Plan | None = None

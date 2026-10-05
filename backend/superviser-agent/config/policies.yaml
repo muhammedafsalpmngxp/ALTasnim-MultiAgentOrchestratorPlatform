@@ -1,15 +1,16 @@
-# Safety rules enforced by code (plan_guard), not by the LLM.
+# The supervisor's limits (an admin can change them at runtime in the admin console).
+
+# Limits used by supervisor v1: they end the loops.
+max_replans: 2          # revised plans per question (after a failed step / rejected verification)
+max_clarifications: 2   # questions back to the user per question
+max_plan_repairs: 2     # times the supervisor's LLM may fix a plan that cannot run
+
+# Guardrails: kept for the admin console, NOT enforced by supervisor v1 (planned for v2). In v1 the supervisor's
+# LLM adds the verifier steps itself.
 max_steps: 10
-max_replans: 2
-max_clarifications: 2
-
-# Insert a verifier step before any step that needs human approval
-# (approval_mode internal/gate), so the approver sees checked data.
+# Insert a verifier step before any step that needs human approval (approval_mode internal/gate).
 verify_before_approval: true
-
 # If the plan has no verifier at all, add one on the final steps.
 verify_final: true
-
-# Email recipients allowed for the communication agent. Empty = any (dev only).
-# Example for production: ["altasnim.com"]
+# Email recipients allowed for the communication agent. Empty = any (dev only). Production e.g. ["altasnim.com"]
 allowed_email_domains: []

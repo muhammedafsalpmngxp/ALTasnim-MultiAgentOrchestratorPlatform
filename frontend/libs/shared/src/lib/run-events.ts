@@ -1,8 +1,11 @@
 import { RunEvent } from './models';
 
 const LABELS: Record<string, (e: RunEvent) => string> = {
-  supervisor_decision: (e) => `Supervisor decided: ${e['action']}. ${e['reasoning'] ?? ''}`,
-  plan: () => 'Plan created and checked by policy',
+  supervisor_thinking: (e) => (e['mode'] === 'review' ? 'Supervisor is reviewing the results…' : 'Supervisor is planning…'),
+  supervisor_decision: (e) =>
+    `Supervisor ${e['mode'] === 'review' ? 'reviewed' : 'decided'}: ${e['action']}. ` +
+    `${e['understanding'] ? `${e['understanding']} — ` : ''}${e['reasoning'] ?? ''}`,
+  plan: (e) => `Plan v${(e['plan'] as { version?: number } | undefined)?.version ?? 1} ready to run`,
   step_started: (e) => `${e['step_id']} · ${e['agent']} started`,
   step_finished: (e) => `${e['step_id']} · ${e['agent']} finished (${e['status']})`,
   step_waiting_approval: (e) => `${e['step_id']} · ${e['agent']} is waiting for approval`,

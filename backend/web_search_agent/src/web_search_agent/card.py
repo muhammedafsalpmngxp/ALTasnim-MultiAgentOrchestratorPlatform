@@ -66,6 +66,7 @@ CARD = AgentCard(
         "with depends_on=['s1']",
     ],
     approval_mode="none",  # read-only on public data
+    role="source",
     params_schema=WebSearchParams.model_json_schema(),
     output_schema=WebSearchResult.model_json_schema(),
     owner="team-search",

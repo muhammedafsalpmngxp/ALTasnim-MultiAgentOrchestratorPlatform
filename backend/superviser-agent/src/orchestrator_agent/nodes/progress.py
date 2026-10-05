@@ -1,13 +1,16 @@
-"""progress: the executor. Decides WHEN each step runs (code, no LLM).
+"""progress: the executor. Decides WHEN each step of the supervisor's plan runs (code, no LLM).
 
 After every wave it looks at the plan and the results:
 - a step was rejected by a human           -> stop and respond
-- a step failed / verifier failed / revise -> back to the supervisor to replan (max N times); a failed
-                                              verification also rejects the steps it checked (redone, e.g.
-                                              rag's passages -> the replan uses web_search)
+- a step failed / a verifier failed        -> back to the supervisor (review mode) to revise the plan, or, with
+                                              no replan left, to write the reply; a failed
+                                              verification also rejects the data it checked (those steps are
+                                              marked failed, so the revised plan takes the facts from elsewhere)
 - steps whose dependencies are all done    -> run them now, in parallel: ``Send`` to the step's agent node
-                                              (``web_search``, ``verifier``, ...) or to ``hitl_gate``
-- nothing left                             -> respond
+- nothing left                             -> respond; or the supervisor reviews first when no final_answer
+                                              agent wrote the reply (it checks the results and writes it)
+
+Verifiers and final answers are found by the agents' role (AgentCard.role), never by name.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from __future__ import annotations
 from langgraph.types import Command, Send
 
 from orchestrator_agent.deps import DepsProvider
+from orchestrator_agent.planning.roles import agents_with_role
 from orchestrator_agent.state import OrchestratorState
 from utils import Plan, StepStatus
 from utils.events import now_iso
@@ -23,6 +27,7 @@ from utils.events import now_iso
 def make_progress(get_deps: DepsProvider):
     def progress(state: OrchestratorState) -> Command:
         deps = get_deps()
+        cards = deps.registry.cards()
         plan = Plan.model_validate(state["plan"])
         steps = {s.id: s for s in plan.steps}
         results = {k: v for k, v in state.get("results", {}).items() if k in steps}
@@ -37,23 +42,26 @@ def make_progress(get_deps: DepsProvider):
         if bad:
             feedback = [f"step {k} ({v['agent']}) {v['status']}: {v.get('error') or v['output'].get('summary', '')}"
                         for k, v in bad.items()]
-            # A failed verification rejects the data it checked (e.g. rag's passages): those steps are redone too,
-            # and named in the feedback, so the next plan takes the facts from elsewhere (rag -> web_search).
-            rejected = {d: k for k in bad if steps[k].agent == "verifier"
-                        for d in steps[k].depends_on if results.get(d, {}).get("status") == "ok"}
+            # A failed verification rejects the data it checked: those steps are marked failed (the supervisor
+            # must not reuse them) and named in the feedback, so the revised plan takes the facts from elsewhere.
+            verifiers = agents_with_role(cards, "verifier")
+            checked = {d: k for k in bad if steps[k].agent in verifiers
+                       for d in steps[k].depends_on if results.get(d, {}).get("status") == "ok"}
             feedback += [f"step {d} ({steps[d].agent}) failed verification: {bad[k]['output'].get('summary', '')}"
-                         for d, k in rejected.items()]
-            if replans >= deps.policies.max_replans:
-                return Command(goto="respond", update={
-                    "feedback": feedback,
-                    "final": "I could not complete the request:\n- " + "\n- ".join(feedback)})
-            # Clear failed and rejected steps and every policy step (verifiers must re-check the new plan).
-            clear = set(bad) | set(rejected) | {s.id for s in plan.steps if s.added_by == "policy"}
+                         for d, k in checked.items()]
+            # Also when no replan is left: the supervisor then writes the honest reply (what was tried, what was
+            # found); a plan at that point ends the request with the failures (nodes/supervisor.py).
+            update_results, update_status = {}, {}
+            for d, k in checked.items():
+                why = f"failed verification ({k}): {bad[k]['output'].get('summary', '')}"
+                update_results[d] = {**results[d], "status": "failed", "error": why}
+                update_status[d] = StepStatus(status="failed", agent=steps[d].agent, updated_at=now_iso(),
+                                              detail=why).model_dump()
             return Command(goto="supervisor", update={
                 "feedback": [*state.get("feedback", []), *feedback],  # all of this request's failures
-                "replans": replans + 1,
-                "results": {k: None for k in clear},
-                "step_status": {k: None for k in clear},
+                "review_reason": "failed",
+                "results": update_results,
+                "step_status": update_status,
             })
 
         done = {k for k, v in results.items() if v["status"] == "ok"}
@@ -62,12 +70,15 @@ def make_progress(get_deps: DepsProvider):
         if not ready:
             if len(done) < len(steps):
                 return Command(goto="respond", update={"final": "Plan is stuck: unresolved dependencies."})
+            finals = agents_with_role(cards, "final_answer")
+            if not any(steps[k].agent in finals for k in done):
+                return Command(goto="supervisor", update={"review_reason": "complete"})
             return Command(goto="respond")
 
         running = {s.id: StepStatus(status="running", agent=s.agent, updated_at=now_iso()).model_dump()
                    for s in ready}
         sends = [
-            Send("hitl_gate" if s.kind == "hitl" else s.agent, {  # plan_guard: s.agent is a registered agent
+            Send("hitl_gate" if s.kind == "hitl" else s.agent, {
                 "step": s.model_dump(),
                 "deps": {d: state["results"][d]["output"] for d in s.depends_on},
                 "attempt": replans,

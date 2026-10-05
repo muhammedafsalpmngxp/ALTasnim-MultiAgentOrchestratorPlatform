@@ -1,52 +1,58 @@
-"""The supervisor controls the whole flow: question -> rag | web_search -> verifier -> synthesizer -> answer.
-Every node is a LangGraph agent (in-process stub graphs here, their own deployments in production)."""
+"""The supervisor controls the whole flow through the real orchestrator graph: its decisions (here scripted, in
+production its LLM) become the plan, progress runs the plan, and the supervisor reviews on events.
+Every agent is a LangGraph agent (in-process stub graphs here, their own deployments in production)."""
 
 import uuid
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 from orchestrator_agent.clients import LocalAgentClient
 from orchestrator_agent.deps import Deps
 from orchestrator_agent.graph import build_graph
-from orchestrator_agent.planning.policies import enforce_policies
-from orchestrator_agent.planning.rule_planner import RulePlanner
+from orchestrator_agent.planning.llm_supervisor import LLMSupervisor
+from orchestrator_agent.planning.scripted import ScriptedSupervisor
 from orchestrator_agent.registry import AgentEntry, AgentRegistry
 from orchestrator_agent.settings import Policies
 from typing_extensions import TypedDict
 from verifier_agent.card import CARD as VERIFIER
 from web_search_agent.card import CARD as SEARCH
 
-from utils import AgentCard, Plan, Step
+from utils import AgentCard, Plan, Step, SupervisorDecision
 from utils.testing import build_stub_agent
 
 QUESTION_SCHEMA = {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}
 RAG = AgentCard(name="rag", version="1.0.0", description="document passages", when_to_use="the user's documents",
-                when_not_to_use="the web", params_schema=QUESTION_SCHEMA)
+                when_not_to_use="the web", role="source", params_schema=QUESTION_SCHEMA)
 SYNTH = AgentCard(name="synthesizer", version="1.0.0", description="final answer", when_to_use="last step",
-                  when_not_to_use="finding facts", params_schema=QUESTION_SCHEMA)
-CARDS = {"rag": RAG, "web_search": SEARCH, "verifier": VERIFIER, "synthesizer": SYNTH}
+                  when_not_to_use="finding facts", role="final_answer", params_schema=QUESTION_SCHEMA)
+TRANSLATOR = AgentCard(name="translator", version="0.1.0", description="Translates text", when_to_use="translate",
+                       when_not_to_use="finding facts", role="transform")
+QUESTION = "Who issues the pegging sheet?"
 
 
-def planner_steps(request, feedback=()):
-    d = RulePlanner().decide(request, [], CARDS, {}, list(feedback))
-    return [(s.id, s.agent, s.depends_on) for s in d.plan.steps]
+def plan(*items: dict) -> SupervisorDecision:
+    steps = [Step(**s) for s in items]
+    return SupervisorDecision(action="plan", understanding="who issues the sheet", reasoning="scripted",
+                              plan=Plan(goal=QUESTION, success_criteria=["the issuer"], steps=steps))
 
 
-def test_document_question_goes_to_rag_web_question_to_web_search():
-    assert planner_steps("Who issues the pegging sheet?") == [("s1", "rag", []), ("s2", "synthesizer", ["s1"])]
-    assert planner_steps("What is the price of iPhone?") == [("s1", "web_search", []), ("s2", "synthesizer", ["s1"])]
-    # rag found nothing before: the replan uses the web
-    assert planner_steps("Who issues the pegging sheet?", ["step s1 (rag) failed: no passage"])[0][1] == "web_search"
+def answer_plan(source: str, ids=("s1", "s2", "s3")) -> SupervisorDecision:
+    """source -> verifier -> synthesizer, as the LLM is asked to plan a question."""
+    a, v, f = ids
+    params = {"question": QUESTION} if source == "rag" else {"query": QUESTION}
+    return plan({"id": a, "agent": source, "objective": f"Find who issues the pegging sheet ({source})",
+                 "params": params},
+                {"id": v, "agent": "verifier", "objective": "Check the facts answer the question", "depends_on": [a]},
+                {"id": f, "agent": "synthesizer", "objective": "Answer", "params": {"question": QUESTION},
+                 "depends_on": [a, v]})
 
 
-def test_verifier_checks_the_facts_before_the_synthesizer_and_passes_its_verdict():
-    plan = Plan(goal="q", steps=[Step(id="s1", agent="rag", objective="find", params={"question": "q"}),
-                                 Step(id="s2", agent="synthesizer", objective="answer", params={"question": "q"},
-                                      depends_on=["s1"])])
-    steps = {s.id: s for s in enforce_policies(plan, CARDS, Policies()).steps}
-    assert (steps["v_s2"].agent, steps["v_s2"].depends_on) == ("verifier", ["s1"])
-    assert steps["s2"].depends_on == ["s1", "v_s2"]
-    assert "v_final" not in steps
+def docs_then_web(ctx):
+    """The documents first; when they fail or are rejected, the web (what the LLM decides from the cards)."""
+    if ctx.mode == "plan":
+        return answer_plan("rag")
+    return answer_plan("web_search", ids=("s4", "s5", "s6"))
 
 
 class _Io(TypedDict, total=False):
@@ -68,7 +74,7 @@ def recording_agent(name, reply, seen):
     return builder.compile(name=name)
 
 
-def make_graph(rag_chunks, passages_answer=True):
+def make_graph(rag_chunks, script=docs_then_web, passages_answer=True, extra=None, supervisor=None):
     """``passages_answer=False``: the verifier rejects rag's passages (they do not answer the question)."""
     seen = []
 
@@ -89,73 +95,170 @@ def make_graph(rag_chunks, passages_answer=True):
     def entry(name, graph, card):
         return AgentEntry(name, LocalAgentClient(graph), card, fetched_at=float("inf"))
 
-    registry = AgentRegistry({
+    entries = {
         "rag": entry("rag", recording_agent("rag", rag, seen), RAG),
         "web_search": entry("web_search", build_stub_agent("web_search", {"status": "ok", "summary": "web: PDO"}),
                             SEARCH),
         "verifier": entry("verifier", recording_agent("verifier", verifier, seen), VERIFIER),
         "synthesizer": entry("synthesizer", recording_agent("synthesizer", synthesizer, seen), SYNTH),
-    })
-    deps = Deps(registry=registry, planner=RulePlanner(), policies=Policies())
-    return build_graph(deps=deps, checkpointer=InMemorySaver()), seen
+    }
+    for name, (card, reply) in (extra or {}).items():
+        entries[name] = entry(name, recording_agent(name, reply, seen), card)
+    supervisor = supervisor or ScriptedSupervisor(script)
+    deps = Deps(registry=AgentRegistry(entries), supervisor=supervisor, policies=Policies())
+    return build_graph(deps=deps, checkpointer=InMemorySaver()), seen, supervisor
 
 
-async def test_supervisor_runs_rag_then_verifier_then_synthesizer():
-    graph, seen = make_graph([{"content": "PDO issues the pegging sheet", "document_name": "rules.pdf"}])
+def new_thread():
+    return {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+
+async def test_the_plan_runs_rag_then_verifier_then_synthesizer_with_one_supervisor_call():
+    graph, seen, sup = make_graph([{"content": "PDO issues the pegging sheet", "document_name": "rules.pdf"}])
     assert {"rag", "web_search", "verifier", "synthesizer"} <= set(graph.get_graph().nodes)
 
-    out = await graph.ainvoke({"request": "Who issues the pegging sheet?"},
-                              {"configurable": {"thread_id": str(uuid.uuid4())}})
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
 
     assert out["final"] == "The sheet is issued by **PDO**."
     assert [name for name, _ in seen] == ["rag", "verifier", "synthesizer"]
+    assert len(sup.calls) == 1 and sup.calls[0].mode == "plan"  # the final answer ran: no review
+    assert set(sup.calls[0].cards) == {"rag", "web_search", "verifier", "synthesizer"}
     synth = seen[2][1]
-    assert synth["params"]["question"] == "Who issues the pegging sheet?"
-    assert set(synth["inputs"]) == {"s1", "v_s2"}  # the passages and the verdict
+    assert synth["params"]["question"] == QUESTION
+    assert set(synth["inputs"]) == {"s1", "s2"}  # the passages and the verdict
     assert synth["inputs"]["s1"]["chunks"][0]["document_name"] == "rules.pdf"
+    assert out["plan"]["success_criteria"] == ["the issuer"]
 
 
-async def test_nothing_in_the_documents_falls_back_to_the_web():
-    graph, seen = make_graph([])
-    out = await graph.ainvoke({"request": "Who issues the pegging sheet?"},
-                              {"configurable": {"thread_id": str(uuid.uuid4())}})
-
-    assert out["final"] == "The sheet is issued by **PDO**."
-    assert [name for name, _ in seen] == ["rag", "verifier", "synthesizer"]  # rag failed: no verification needed
-    assert out["results"]["s1"]["agent"] == "web_search"  # the replan
-    assert seen[2][1]["inputs"]["s1"]["summary"] == "web: PDO"
-
-
-async def test_rag_passages_that_fail_verification_are_replaced_by_the_web_then_verified_again():
-    graph, seen = make_graph([{"content": "Unrelated clause", "document_name": "rules.pdf"}], passages_answer=False)
-    out = await graph.ainvoke({"request": "Who issues the pegging sheet?"},
-                              {"configurable": {"thread_id": str(uuid.uuid4())}})
+async def test_nothing_in_the_documents_the_supervisor_reviews_and_uses_the_web():
+    graph, seen, sup = make_graph([])
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
 
     assert out["final"] == "The sheet is issued by **PDO**."
-    # rag -> verifier rejects it -> web_search -> verifier passes -> synthesizer
+    assert [name for name, _ in seen] == ["rag", "verifier", "synthesizer"]  # rag failed: its verifier never ran
+    review = sup.calls[1]
+    assert (review.mode, review.review_reason) == ("review", "failed")
+    assert review.results["s1"]["status"] == "failed"  # the review sees the failure
+    assert any("(rag) failed" in f for f in review.feedback)
+    assert out["plan"]["version"] == 2 and out["replans"] == 1
+    assert set(out["results"]) == {"s4", "s5", "s6"}  # the failed plan's results are gone
+    assert seen[2][1]["inputs"]["s4"]["summary"] == "web: PDO"
+
+
+async def test_passages_rejected_by_the_verifier_are_replaced_by_the_web_then_verified_again():
+    graph, seen, sup = make_graph([{"content": "Unrelated clause", "document_name": "rules.pdf"}],
+                                  passages_answer=False)
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
+
+    assert out["final"] == "The sheet is issued by **PDO**."
+    # rag -> verifier rejects it -> (review) web_search -> verifier passes -> synthesizer
     assert [name for name, _ in seen] == ["rag", "verifier", "verifier", "synthesizer"]
-    assert out["results"]["s1"]["agent"] == "web_search"  # rag's rejected s1 was redone, not reused
+    review = sup.calls[1]
+    assert review.results["s1"]["status"] == "failed"  # rejected data is marked, so it is never reused
+    assert "failed verification" in review.results["s1"]["error"]
     assert any("(rag) failed verification" in f for f in out["feedback"])
-    synth = seen[3][1]["inputs"]
-    assert synth["s1"]["summary"] == "web: PDO" and synth["v_s2"]["summary"] == "Verification passed"
 
 
-def test_any_request_is_a_question_only_small_talk_is_answered_directly():
-    assert planner_steps("flaf and pegg") == [("s1", "rag", []), ("s2", "synthesizer", ["s1"])]
-    assert planner_steps("retention money") == [("s1", "rag", []), ("s2", "synthesizer", ["s1"])]
-    for small_talk in ("hello", "Hi!", "thanks", "what can you do?"):
-        d = RulePlanner().decide(small_talk, [], CARDS, {}, [])
-        assert d.action == "answer" and "documents" in d.answer and "email" not in d.answer
+async def test_without_a_final_answer_agent_the_supervisor_reviews_and_writes_the_answer():
+    def script(ctx):
+        if ctx.mode == "plan":
+            return plan({"id": "s1", "agent": "rag", "objective": "find", "params": {"question": QUESTION}},
+                        {"id": "s2", "agent": "verifier", "objective": "check", "depends_on": ["s1"]})
+        assert ctx.review_reason == "complete" and ctx.results["s1"]["status"] == "ok"
+        return SupervisorDecision(action="finish", answer="PDO issues it (rules.pdf).")
+
+    graph, seen, sup = make_graph([{"content": "PDO issues the pegging sheet", "document_name": "rules.pdf"}],
+                                  script=script)
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
+    assert out["final"] == "PDO issues it (rules.pdf)." and len(sup.calls) == 2
 
 
-async def test_each_question_in_a_chat_runs_the_agents_again():
+async def test_small_talk_is_answered_without_agents():
+    graph, seen, sup = make_graph([], script=lambda ctx: SupervisorDecision(action="answer", answer="Hello!"))
+    out = await graph.ainvoke({"request": "hello"}, new_thread())
+    assert out["final"] == "Hello!" and seen == [] and out.get("plan") is None
+
+
+async def test_clarify_asks_the_user_and_plans_with_the_answer():
+    def script(ctx):
+        if not ctx.clarifications:
+            return SupervisorDecision(action="clarify", question="Which document?")
+        assert ctx.clarifications == ["rules.pdf"]
+        return answer_plan("rag")
+
+    graph, seen, sup = make_graph([{"content": "PDO issues it", "document_name": "rules.pdf"}], script=script)
+    cfg = new_thread()
+    out = await graph.ainvoke({"request": QUESTION}, cfg)
+    assert out["__interrupt__"][0].value == {"kind": "clarification", "question": "Which document?"}
+    out = await graph.ainvoke(Command(resume="rules.pdf"), cfg)
+    assert out["final"] == "The sheet is issued by **PDO**."
+
+
+async def test_the_supervisor_stops_after_the_replan_limit():
+    def script(ctx):  # keeps trying the documents with a new step id
+        n = len(ctx.feedback)
+        return plan({"id": f"r{n}", "agent": "rag", "objective": f"try {n}", "params": {"question": QUESTION}})
+
+    graph, seen, sup = make_graph([], script=script)
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
+    assert out["replans"] == Policies().max_replans
+    assert out["final"].startswith("I could not complete the request")
+    assert "No passage in the documents" in out["final"]
+
+
+async def test_with_no_replan_left_the_supervisor_writes_the_honest_reply():
+    def script(ctx):
+        if ctx.mode == "review" and ctx.replans_left == 0:
+            assert any("No passage in the documents" in f for f in ctx.feedback)
+            return SupervisorDecision(action="answer", answer="I could not find it in your documents.")
+        n = len(ctx.feedback)
+        return plan({"id": f"r{n}", "agent": "rag", "objective": f"try {n}", "params": {"question": QUESTION}})
+
+    graph, seen, sup = make_graph([], script=script)
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
+    assert out["final"] == "I could not find it in your documents."
+    assert len(sup.calls) == 2 + Policies().max_replans  # the plan, each replan, the reply
+
+
+async def test_a_new_agent_is_planned_and_run_from_its_card_alone():
+    """translator is not known to the supervisor's code: it is a node and the plan can use it."""
+    def translate(task):
+        return {"status": "ok", "summary": "Arabic: PDO"}
+
+    def script(ctx):
+        assert "translator" in ctx.cards
+        return plan({"id": "s1", "agent": "rag", "objective": "find", "params": {"question": QUESTION}},
+                    {"id": "s2", "agent": "translator", "objective": "Translate to Arabic", "depends_on": ["s1"]},
+                    {"id": "s3", "agent": "synthesizer", "objective": "Answer", "params": {"question": QUESTION},
+                     "depends_on": ["s2"]})
+
+    graph, seen, sup = make_graph([{"content": "PDO issues it", "document_name": "rules.pdf"}], script=script,
+                                  extra={"translator": (TRANSLATOR, translate)})
+    assert "translator" in graph.get_graph().nodes
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
+    assert [name for name, _ in seen] == ["rag", "translator", "synthesizer"]
+    assert seen[1][1]["inputs"]["s1"]["chunks"][0]["content"] == "PDO issues it"
+    assert out["final"] == "The sheet is issued by **PDO**."
+
+
+async def test_each_question_in_a_chat_runs_the_agents_again_and_sees_the_history():
     """A second question on the same thread must not reuse the first question's agent threads (old answers)."""
-    graph, seen = make_graph([{"content": "PDO issues the pegging sheet", "document_name": "rules.pdf"}])
-    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    graph, seen, sup = make_graph([{"content": "PDO issues the pegging sheet", "document_name": "rules.pdf"}])
+    cfg = new_thread()
 
-    await graph.ainvoke({"request": "Who issues the pegging sheet?"}, config)
-    await graph.ainvoke({"request": "Who issues the FLAF?"}, config)
+    await graph.ainvoke({"request": QUESTION}, cfg)
+    await graph.ainvoke({"request": "Who issues the FLAF?"}, cfg)
 
     assert [name for name, _ in seen] == ["rag", "verifier", "synthesizer"] * 2
-    questions = [task["params"]["question"] for name, task in seen if name == "rag"]
-    assert questions == ["Who issues the pegging sheet?", "Who issues the FLAF?"]
+    assert sup.calls[1].history == [("user", QUESTION), ("assistant", "The sheet is issued by **PDO**.")]
+
+
+async def test_without_a_supervisor_model_the_user_gets_a_clear_message(monkeypatch):
+    from orchestrator_agent import llm
+
+    monkeypatch.delenv("SUPERVISOR_LLM_MODEL", raising=False)
+    llm.supervisor_model.cache_clear()
+    graph, seen, _ = make_graph([], supervisor=LLMSupervisor())
+    out = await graph.ainvoke({"request": QUESTION}, new_thread())
+    llm.supervisor_model.cache_clear()
+    assert "set SUPERVISOR_LLM_MODEL" in out["final"] and seen == []

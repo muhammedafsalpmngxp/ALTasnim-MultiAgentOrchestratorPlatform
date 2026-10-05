@@ -27,16 +27,16 @@ backend/
 │   ├── config/                agents.dev.yaml (agents + ports + transport), policies.yaml
 │   ├── src/orchestrator_agent/
 │   │   ├── graph.py           intake → supervisor → plan_guard → progress ⇄ agent nodes / hitl_gate → respond
-│   │   ├── state.py · settings.py · deps.py
+│   │   ├── state.py · settings.py · deps.py · llm.py (SUPERVISOR_LLM_MODEL)
 │   │   ├── nodes/             intake, supervisor, clarify, plan_guard, progress, run_agent (every agent node's
 │   │   │                      body), hitl_gate, respond
-│   │   ├── planning/          planner, rule_planner, llm_planner, validate, policies
+│   │   ├── planning/          llm_supervisor (the LLM plans / reviews), validate, roles, scripted (tests)
 │   │   ├── registry/          agent discovery (GET /card) + health
 │   │   ├── clients/           local (in-process) / remote (langgraph_sdk) agent clients
-│   │   ├── prompts/           supervisor.md
+│   │   ├── prompts/           supervisor_plan.md, supervisor_review.md
 │   │   ├── auth.py            owner-scoped threads (langgraph_sdk.Auth)
 │   │   └── api.py             /platform/agents, /platform/policies (http.app)
-│   ├── tests/                 unit/ (planner, plan_guard)  graph/ (end-to-end flows)
+│   ├── tests/                 unit/ (llm_supervisor, validate)  graph/ (end-to-end flows)  live/ (real LLM)
 │   └── evals/planning/        request → expected plan dataset
 │
 ├── web_search_agent/          [Person A]  :8201   plan_queries → Send(search ×N) → summarize

@@ -12,7 +12,8 @@
 #   remote - every agent on its own port/machine (backend/.env sets this)
 #   local  - agents with local_graph run in-process (no servers; development and tests only)
 #
-# card: planning fields merged over the agent's own GET /card (for agents whose card lacks them).
+# card: planning fields merged over the agent's own GET /card (for agents whose card lacks them), e.g. its role
+# (source | transform | final_answer | verifier | action). The supervisor's LLM plans from these cards.
 # To add an agent: add an entry here (enabled: false until it is ready).
 transport: local
 
@@ -23,11 +24,15 @@ agents:
     graph_id: web_search
     local_graph: web_search_agent.graph:graph
     local_card: web_search_agent.card:CARD
+    card:
+      role: source        # also on its own card; here so older images on the network are planned the same
 
   rag:
     enabled: true
     port: 8000
     graph_id: rag
+    card:
+      role: source
 
   verifier:
     enabled: true
@@ -35,12 +40,15 @@ agents:
     graph_id: verifier
     local_graph: verifier_agent.graph:graph
     local_card: verifier_agent.card:CARD
+    card:
+      role: verifier
 
   synthesizer:
     enabled: true
     port: 8204
     graph_id: synthesizer
     card:
+      role: final_answer  # its answer is the reply
       when_to_use: >-
         Always the last step of a question: writes ONE clear final answer from the outputs of the earlier steps
         (depends_on them).
@@ -59,3 +67,6 @@ agents:
     graph_id: communication
     local_graph: communication_agent.graph:graph
     local_card: communication_agent.card:CARD
+    card:
+      role: action
+      side_effects: true

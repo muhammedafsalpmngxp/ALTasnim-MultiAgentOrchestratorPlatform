@@ -13,11 +13,18 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # backend/superviser-agent
 
 
 class Policies(BaseModel):
-    """Safety rules enforced by code (config/policies.yaml; an admin can change them at runtime)."""
+    """The supervisor's limits and rules (config/policies.yaml; an admin can change them at runtime).
 
-    max_steps: int = Field(10, ge=1, le=50)
+    Supervisor v1 uses the limits (max_replans, max_clarifications, max_plan_repairs): they end the loops. The
+    guardrails below them (max_steps, verify_*, allowed_email_domains) are kept for the admin console and come
+    back in v2; v1 does not enforce them (the supervisor's LLM adds the verifier steps itself).
+    """
+
     max_replans: int = Field(2, ge=0, le=10)
     max_clarifications: int = Field(2, ge=0, le=10)
+    # How often the supervisor's LLM may fix a plan that cannot run (unknown step in depends_on, a cycle, ...).
+    max_plan_repairs: int = Field(2, ge=0, le=5)
+    max_steps: int = Field(10, ge=1, le=50)
     verify_before_approval: bool = True
     verify_before_synthesis: bool = True
     verify_final: bool = True

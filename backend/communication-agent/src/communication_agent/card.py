@@ -33,6 +33,8 @@ CARD = AgentCard(
         "Email the comparison to the sales team",
     ],
     approval_mode="internal",
+    role="action",
+    side_effects=True,
     params_schema=CommunicationParams.model_json_schema(),
     output_schema={"type": "object", "properties": {"status": {"type": "string"}, "message_id": {"type": "string"}}},
     owner="team-comms",

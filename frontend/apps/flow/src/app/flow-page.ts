@@ -119,6 +119,7 @@ export class FlowPage {
   /** The tone and icon of one activity event. */
   private look(e: RunEvent): Pick<TimelineItem, 'tone' | 'icon'> {
     switch (e.type) {
+      case 'supervisor_thinking':
       case 'supervisor_decision':
         return { tone: 'primary', icon: FLOW_ICONS.supervisor };
       case 'plan':
