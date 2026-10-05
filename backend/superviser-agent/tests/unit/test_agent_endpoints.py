@@ -8,12 +8,11 @@ from orchestrator_agent.registry import AgentRegistry, discovery
 from orchestrator_agent.settings import AgentConfig, AgentsConfig, load_agents_config
 
 
-def test_config_has_a_port_and_graph_per_node_and_no_email_node():
+def test_config_has_a_port_and_graph_per_node():
     cfg = load_agents_config()
     nodes = {name: (a.port, a.graph_id) for name, a in cfg.agents.items() if a.enabled}
     assert nodes == {"web_search": (8201, "web_search"), "rag": (8000, "rag"), "verifier": (8203, "verifier"),
-                     "synthesizer": (8204, "synthesizer")}
-    assert not cfg.agents["communication"].enabled
+                     "synthesizer": (8204, "synthesizer"), "communication": (8202, "communication")}
 
 
 def test_env_overrides_each_agent_port_and_the_network(monkeypatch):

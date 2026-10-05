@@ -6,3 +6,5 @@
 {"request": "What is the latest news about the Oman oil price today?", "expected_action": "plan", "expected_agents": {"web_search": 1, "verifier": 1, "synthesizer": 1}}
 {"request": "Compare the iPhone 16 price in Oman and UAE", "expected_action": "plan", "expected_agents": {"web_search": 2, "verifier": 1, "synthesizer": 1}, "expected_parallel": "web_search"}
 {"request": "What does our leave policy document say about annual leave, and how does it compare with the current UAE labour law?", "expected_action": "plan", "expected_agents": {"rag": 1, "web_search": 1, "verifier": 1, "synthesizer": 1}}
+{"request": "Find the current iPhone 16 price in Oman and email it to rijin@gmail.com", "expected_action": "plan", "expected_agents": {"web_search": 1, "verifier": 1, "synthesizer": 1, "communication": 1}}
+{"request": "Email the latest iPhone 16 price in Oman", "expected_action": "clarify"}

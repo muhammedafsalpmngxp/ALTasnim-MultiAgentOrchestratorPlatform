@@ -11,7 +11,13 @@ import { AgentOutput } from '@altasnim/shared';
         <span class="icon" aria-hidden="true">✉</span>
         <div>
           <div><strong>{{ result()?.['subject'] }}</strong></div>
-          <div class="muted small">to {{ recipients() }} · {{ result()?.['message_id'] }}</div>
+          <div class="muted small">
+            {{ logged() ? 'logged only (test mode), not delivered to' : 'sent to' }} {{ recipients() }}
+            @if (cc()) {
+              · cc {{ cc() }}
+            }
+            · written by {{ result()?.['writer'] === 'llm' ? 'the LLM' : 'a template' }}
+          </div>
         </div>
       </div>
     } @else {
@@ -27,5 +33,7 @@ import { AgentOutput } from '@altasnim/shared';
 export class EmailResultView {
   readonly result = input<AgentOutput | null>(null);
   protected readonly sent = computed(() => this.result()?.['delivery'] === 'sent');
+  protected readonly logged = computed(() => this.result()?.['channel'] === 'console');
   protected readonly recipients = computed(() => ((this.result()?.['to'] as string[] | undefined) ?? []).join(', '));
+  protected readonly cc = computed(() => ((this.result()?.['cc'] as string[] | undefined) ?? []).join(', '));
 }

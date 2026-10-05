@@ -14,6 +14,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from communication_agent.card import CARD as COMM
 from orchestrator_agent.planning.llm_supervisor import LLMSupervisor, SupervisorContext
 from orchestrator_agent.settings import load_agents_config
 from synthesizer_agent.card import CARD as SYNTH_CARD
@@ -48,7 +49,7 @@ RAG = AgentCard.model_validate({
     **(_config["rag"].card or {}),
 })
 SYNTH = AgentCard.model_validate({**SYNTH_CARD, **(_config["synthesizer"].card or {})})
-CARDS = {"rag": RAG, "web_search": SEARCH, "verifier": VERIFIER, "synthesizer": SYNTH}
+CARDS = {"rag": RAG, "web_search": SEARCH, "verifier": VERIFIER, "synthesizer": SYNTH, "communication": COMM}
 FACTS = {"source", "transform"}
 
 

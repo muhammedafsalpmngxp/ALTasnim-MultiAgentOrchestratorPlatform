@@ -1,18 +1,63 @@
-"""Write the email from the outputs of the steps this step depends on."""
+"""Write the email from the outputs of the steps this step depends on (content.py, writer.py, render.py).
+
+Invalid recipients, a recipient outside EMAIL_ALLOWED_DOMAINS, too many recipients, or nothing to send end the
+step as failed (nothing reaches the approver). Recipients come only from the params, never from the content.
+"""
 
 from __future__ import annotations
 
+from typing import Literal
+
+from langgraph.graph import END
+from langgraph.types import Command
+from pydantic import ValidationError
+
 from communication_agent.card import CommunicationParams, EmailDraft
+from communication_agent.content import collect
+from communication_agent.render import to_html, to_text
+from communication_agent.settings import Settings, get_settings
 from communication_agent.state import State
+from communication_agent.writer import write
 from utils import AgentTask
 
 
-def draft(state: State) -> dict:
-    task = AgentTask.model_validate(state["task"])
-    params = CommunicationParams.model_validate(task.params)
+def failed(summary: str) -> Command:
+    return Command(goto=END, update={"result": {"status": "failed", "summary": summary}})
 
-    sections = [out.get("summary", "") for out in task.inputs.values() if isinstance(out, dict)]
-    body = "Hello,\n\n" + "\n\n".join(s for s in sections if s) + "\n\nRegards,\nALTasnim Agent Platform"
-    # TODO(team-comms): with get_model("standard"), rewrite `body` into a polished email.
-    email = EmailDraft(to=params.to, subject=params.subject or task.objective[:120], body=body)
-    return {"draft": email.model_dump()}
+
+def check_recipients(addresses: list[str], settings: Settings) -> None:
+    """ValueError when a recipient is not allowed (EMAIL_ALLOWED_DOMAINS) or there are too many."""
+    if len(addresses) > settings.max_recipients:
+        raise ValueError(f"{len(addresses)} recipients, at most {settings.max_recipients} (EMAIL_MAX_RECIPIENTS)")
+    if settings.allowed_domains:
+        outside = [a for a in addresses if a.rsplit("@", 1)[-1].lower() not in settings.allowed_domains]
+        if outside:
+            raise ValueError(f"not allowed (EMAIL_ALLOWED_DOMAINS): {', '.join(outside)}")
+
+
+def _reason(exc: ValidationError) -> str:
+    return "; ".join(f"{'.'.join(map(str, e['loc'])) or 'params'}: {e['msg']}" for e in exc.errors())
+
+
+def draft(state: State) -> Command[Literal["approve", "__end__"]]:
+    task = AgentTask.model_validate(state["task"])
+    try:
+        params = CommunicationParams.model_validate(task.params)
+    except ValidationError as exc:
+        return failed(f"Email not drafted: {_reason(exc)}")
+    settings = get_settings()
+    try:
+        check_recipients([*params.to, *params.cc], settings)
+    except ValueError as exc:
+        return failed(f"Email not drafted: {exc}")
+
+    content = collect(task.inputs)
+    if not content.text:
+        return failed("Email not drafted: the earlier steps returned no content to send.")
+
+    email, writer, grounded = write(task.objective, params, content, settings)
+    text = to_text(email, settings.signature, content.sources, settings.from_name)
+    html = to_html(email, settings.signature, content.sources, settings.from_name)
+    result = EmailDraft(to=params.to, cc=params.cc, subject=email.subject, body=text, html=html,
+                        sources=content.sources, writer=writer, grounded=grounded)
+    return Command(goto="approve", update={"draft": result.model_dump()})

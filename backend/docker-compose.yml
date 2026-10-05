@@ -32,7 +32,7 @@ services:
     ports: ["${COMMUNICATION_PORT:-8202}:${COMMUNICATION_PORT:-8202}"]
     environment:
       COMMUNICATION_PORT: ${COMMUNICATION_PORT:-8202}
-      EMAIL_SMTP_HOST: mailpit
+      # email settings come from .env (SMTP_*, EMAIL_*); for Mailpit set SMTP_HOST=mailpit there
 
   verifier-agent:
     <<: *agent

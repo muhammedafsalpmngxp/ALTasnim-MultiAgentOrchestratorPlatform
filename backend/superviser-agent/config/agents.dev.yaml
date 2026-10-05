@@ -60,9 +60,10 @@ agents:
           question: {type: string, description: "the user's question"}
         required: [question]
 
-  # Not a node of the supervisor (email is not part of its flow). The agent still runs on its own (port 8202).
+  # Sends an email after a human approves the draft (approval_mode internal). The supervisor plans it only when
+  # the user asks to send something.
   communication:
-    enabled: false
+    enabled: true
     port: 8202
     graph_id: communication
     local_graph: communication_agent.graph:graph
