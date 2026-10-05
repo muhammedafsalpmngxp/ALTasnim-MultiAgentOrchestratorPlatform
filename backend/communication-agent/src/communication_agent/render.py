@@ -1,11 +1,12 @@
 """The email's layout: one structure -> a plain-text and an HTML version (email-safe: inline CSS, 600 px, no
-images or scripts, everything escaped). The signature, the sources and the footer are added here, by code."""
+images or scripts, everything escaped). The signature and the sources are added here, by code. The layout is kept
+plain (like a personal email), because bulk-mail layouts (banners, boxes, tiny grey footers) are what spam filters
+flag."""
 
 from __future__ import annotations
 
 import html
 import re
-from datetime import date
 
 from pydantic import BaseModel, Field
 
@@ -40,10 +41,6 @@ def _inline(text: str) -> str:
     return re.sub(r"(https?://[^\s<]+)", r'<a href="\1" style="color:#1a56db;">\1</a>', out)
 
 
-def footer(from_name: str, today: date | None = None) -> str:
-    return f"Prepared by {from_name} on {(today or date.today()).strftime('%d %B %Y')}"
-
-
 def to_text(email: EmailContent, signature: str, sources: list[str], from_name: str) -> str:
     lines = [_plain(email.greeting), "", _plain(email.opening)]
     for p in email.paragraphs:
@@ -58,7 +55,6 @@ def to_text(email: EmailContent, signature: str, sources: list[str], from_name: 
     lines += ["", signature]
     if sources:
         lines += ["", "Sources"] + [f"{i}. {s}" for i, s in enumerate(sources, start=1)]
-    lines += ["", "--", footer(from_name)]
     return "\n".join(lines).strip() + "\n"
 
 
@@ -83,10 +79,7 @@ def to_html(email: EmailContent, signature: str, sources: list[str], from_name: 
     body.append(f'<p style="margin:18px 0 0 0;">{"<br>".join(_inline(line) for line in signature.splitlines())}</p>')
     if sources:
         items = "".join(f'<li style="margin:0 0 4px 0;">{_inline(s)}</li>' for s in sources)
-        body.append('<div style="margin:22px 0 0 0;padding-top:12px;border-top:1px solid #e5e7eb;font-size:13px;'
-                    f'color:#4b5563;"><strong>Sources</strong><ol style="margin:6px 0 0 0;padding-left:20px;">'
-                    f"{items}</ol></div>")
-    body.append(f'<p style="margin:18px 0 0 0;font-size:12px;color:#9ca3af;">{html.escape(footer(from_name))}</p>')
+        body.append(f'<p style="margin:18px 0 4px 0;">Sources:</p><ol style="margin:0;padding-left:20px;">{items}</ol>')
     return _page(email.subject, "".join(body))
 
 
@@ -104,15 +97,11 @@ def text_to_html(text: str, subject: str) -> str:
 
 
 def _page(subject: str, inner: str) -> str:
+    """A plain, personal-looking page: no background, box or banner (those look like bulk mail to spam filters)."""
     return (
         '<!DOCTYPE html><html><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{html.escape(subject)}</title></head>"
-        '<body style="margin:0;padding:0;background:#f5f6f8;">'
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6f8;">'
-        '<tr><td align="center" style="padding:24px 12px;">'
-        '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;'
-        'background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">'
-        '<tr><td style="padding:28px 32px;font-family:Segoe UI,Arial,Helvetica,sans-serif;font-size:15px;'
-        f'line-height:1.55;color:#1f2937;">{inner}</td></tr></table></td></tr></table></body></html>'
+        '<body style="margin:0;padding:0;">'
+        '<div style="max-width:640px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;'
+        f'color:#222222;">{inner}</div></body></html>'
     )

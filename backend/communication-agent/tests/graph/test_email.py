@@ -87,7 +87,7 @@ def test_without_a_model_the_template_has_the_content_signature_and_sources():
     assert body.startswith("Hello,") and "costs OMR 299 in Oman" in body  # the final answer, bold removed
     assert "Verification passed" not in body  # a verdict is a check, not content
     assert "Best regards,\nALTasnim Agent Platform" in body
-    assert "Sources\n1. https://example.com/oman" in body and "Prepared by ALTasnim Agent Platform on" in body
+    assert "Sources\n1. https://example.com/oman" in body and "Prepared by" not in body  # no bulk-mail footer
     assert "<strong>OMR 299</strong>" in d["html"] and "<script" not in d["html"]
 
 
@@ -217,7 +217,7 @@ def test_smtp_uses_starttls_and_login_and_sends_text_and_html(smtp):
     assert server.calls[:4] == ["ehlo", "starttls", "ehlo", ("login", "me@gmail.com")]
     msg, from_addr, to_addrs = server.sent[0]
     assert from_addr == "me@gmail.com" and to_addrs == ["rijin@gmail.com"]
-    assert msg["From"] == "ALTasnim Agent Platform <me@gmail.com>" and msg["Message-ID"].endswith("@gmail.com>")
+    assert msg["From"] == "ALTasnim Agent Platform <me@gmail.com>" and msg["Message-ID"] is None  # Gmail sets it
     assert [p.get_content_type() for p in msg.iter_parts()] == ["text/plain", "text/html"]
     assert channel.SENT[0]["to"] == ["rijin@gmail.com"]
 

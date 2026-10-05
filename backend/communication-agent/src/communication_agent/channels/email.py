@@ -49,7 +49,8 @@ def build_message(draft: EmailDraft, message_id: str, settings: Settings) -> Ema
         msg["Reply-To"] = settings.reply_to
     msg["Subject"] = draft.subject
     msg["Date"] = formatdate(localtime=True)
-    msg["Message-ID"] = message_id
+    # no Message-ID header: the mail server (Gmail) sets its own; a self-made one is a spam signal. message_id
+    # stays the run's internal id (no double send).
     msg.set_content(draft.body)
     if draft.html:
         msg.add_alternative(draft.html, subtype="html")
