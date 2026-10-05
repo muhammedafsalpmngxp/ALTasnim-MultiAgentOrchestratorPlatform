@@ -18,3 +18,7 @@ web_search_agent/models
 web_search_agent/logs
 # superviser-agent: planning text customised in the admin console is a volume, not image content
 superviser-agent/data
+# not part of these images
+**/node_modules
+**/.coverage
+Rag-agent/

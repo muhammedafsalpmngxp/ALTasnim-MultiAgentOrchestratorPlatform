@@ -3,3 +3,8 @@
 .pytest_cache
 .env
 tests
+.venv
+.ruff_cache
+README.md
+Dockerfile
+docker-compose.yml

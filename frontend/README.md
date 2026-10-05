@@ -59,7 +59,8 @@ npm start
 The backend must be running (`cd backend; docker compose up`, or `langgraph dev` per agent).
 
 Run a single app on its own (e.g. while a team works on its agent UI): `npm run start:communication-ui` → http://localhost:4302.
-To start your agent's container and its UI together, run `node dev.mjs <agent>` from the repo root (see the root README).
+To start your agent's container and its UI: `docker compose up -d --build <service>` in `backend/`, then
+`npm run start:<agent>-ui` here (the table is in the root README, "Work on your agent").
 
 Production build of all apps into `dist/`:
 

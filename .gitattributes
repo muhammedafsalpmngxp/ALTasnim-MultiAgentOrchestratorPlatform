@@ -9,3 +9,11 @@
 *.ico binary
 *.woff binary
 *.woff2 binary
+*.gif binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.onnx binary
+*.safetensors binary
+*.bin binary
+*.sh text eol=lf

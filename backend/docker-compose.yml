@@ -2,7 +2,8 @@
 #
 #   cd backend
 #   docker compose up --build              # ports: <AGENT>_PORT in backend/.env (8100, 8201-8204)
-#   docker compose --profile mail up       # + Mailpit (EMAIL_CHANNEL=smtp), UI http://localhost:8025
+#   docker compose --profile mail up       # + Mailpit test inbox (.env: SMTP_HOST=mailpit, SMTP_PORT=1025,
+#                                          #   SMTP_USE_TLS=false), UI http://localhost:8025
 #
 # Configuration comes from the one backend/.env (all agents; template .env.example). Values under
 # `environment:` override it. The Rag agent has its own compose (Rag-agent/docker-compose.yml), same .env.

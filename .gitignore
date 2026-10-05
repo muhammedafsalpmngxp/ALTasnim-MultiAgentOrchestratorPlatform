@@ -27,11 +27,20 @@ env/
 .ruff_cache/
 .mypy_cache/
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/
+.tox/
+.nox/
+.cache/
 
 # ---- LangGraph -------------------------------------------------------
 .langgraph_api/
+
+# ---- local databases / vector stores ------------------------------------
+qdrant_storage/
+*.sqlite3
+*.db
 
 # ---- supervisor: agent planning text customised in the admin console (per machine) ----
 backend/superviser-agent/data/

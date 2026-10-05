@@ -8,11 +8,11 @@
 /backend/superviser-agent/          @platform-lead
 /backend/docker-compose.yml         @platform-lead
 /backend/requirements.txt           @platform-lead
+/backend/pyproject.toml             @platform-lead
+/backend/.env.example               @platform-lead
 
 # ---- frontend: platform
 /frontend/                          @frontend-lead
-/frontend/apps/                     @frontend-lead
-/frontend/libs/                     @frontend-lead
 
 # ---- agent teams: backend agent + its UI
 /backend/web_search_agent/          @person-a

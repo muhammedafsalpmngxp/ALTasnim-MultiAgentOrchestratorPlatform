@@ -16,7 +16,7 @@ backend/
 ├── utils/                     [platform lead]  shared utilities: contracts every agent uses
 │   ├── contracts.py           Plan, Step, SupervisorDecision, AgentTask, AgentResult, AgentCard, StepStatus
 │   ├── context.py             RequestContext (LangGraph context_schema: tenant, user, roles)
-│   ├── llm.py                 model factory (init_chat_model), rule-based fallback when no LLM set
+│   ├── llm.py                 shared model tiers (LLM_MODEL_STANDARD / _FAST) for agents that use them; None if unset
 │   ├── env.py                 loads backend/.env
 │   ├── auth.py                dev/JWT user resolution for every auth.py
 │   ├── events.py              custom stream events (get_stream_writer)
@@ -39,11 +39,14 @@ backend/
 │   ├── tests/                 unit/ (llm_supervisor, validate)  graph/ (end-to-end flows)  live/ (real LLM)
 │   └── evals/planning/        request → expected plan dataset
 │
-├── web_search_agent/          [Person A]  :8201   plan_queries → Send(search ×N) → summarize
-├── communication-agent/       [Person B]  :8202   draft → approve (interrupt) → send
-└── verifier-agent/            [Person C]  :8203   (check_evidence ‖ check_completeness) → verdict
+├── web_search_agent/          [Person A]  :8201   plan_queries → Send(search ×N) → extract → rerank → result
+├── communication-agent/       [Person B]  :8202   draft (LLM, facts checked) → approve (interrupt) → send (SMTP)
+├── verifier-agent/            [Person C]  :8203   (check_evidence ‖ check_completeness ‖ check_answer) → verdict
+├── Rag-agent/                 [Person D]  :8000   retrieve (Qdrant hybrid + rerank); own docker-compose.yml + Qdrant
+└── Synthesizer-agent/         [Person E]  :8204   synthesize (one final answer from the earlier steps)
     every agent folder:
-      Dockerfile · langgraph.json · README.md · CHANGELOG.md     (no own requirements / pyproject)
+      Dockerfile · langgraph.json · README.md · CHANGELOG.md
+      (web_search_agent, Rag-agent and Synthesizer-agent also have their own requirements.txt)
       src/<package>/  graph.py  state.py  card.py  nodes/  auth.py  api.py  (+ tools/ prompts/ channels/)
       tests/          contract/  graph/
 ```
@@ -81,13 +84,14 @@ Prerequisite: Docker Desktop is running. All commands from `backend/`.
 copy .env.example .env
 ```
 
-**2. Build the 4 images and start them** (orchestrator :8100, web-search :8201, communication :8202, verifier :8203):
+**2. Build the 5 images and start them** (orchestrator :8100, web-search :8201, communication :8202, verifier :8203,
+synthesizer :8204). Rag has its own compose file: `docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build`.
 
 ```powershell
 docker compose up --build -d
 ```
 
-**3. Check all 4 are `healthy`.** The orchestrator starts after the 3 agents are healthy (about 20 s):
+**3. Check all 5 are `healthy`** (about 20 s; the orchestrator finds the agents on the network as they come up):
 
 ```powershell
 docker compose ps
@@ -114,9 +118,9 @@ docker compose logs -f communication-agent
 docker compose down
 ```
 
-Only your agent: `docker compose up -d --build <service>` (e.g. `verifier-agent`), or `node dev.mjs <agent>` from the
-repo root, which also serves its UI. After changing code or `requirements.txt`, run step 2 again (`--build` rebuilds the images).
-Add `--profile mail` in step 2 to also start Mailpit (set `EMAIL_CHANNEL=smtp` in `.env`; inbox at http://localhost:8025).
+Only your agent: `docker compose up -d --build <service>` (e.g. `verifier-agent`). After changing code or `requirements.txt`, run step 2 again (`--build` rebuilds the images).
+Add `--profile mail` in step 2 to also start Mailpit, a local test inbox (in `.env`: `EMAIL_DELIVERY=smtp`,
+`SMTP_HOST=mailpit`, `SMTP_PORT=1025`, `SMTP_USE_TLS=false`; inbox at http://localhost:8025).
 
 Notes:
 - Each image contains the whole backend package but runs only its own agent.
@@ -132,6 +136,8 @@ same port to `--port`). One terminal per agent (conda env active), from the agen
 cd web_search_agent;    langgraph dev --port 8201 --no-browser
 cd communication-agent; langgraph dev --port 8202 --no-browser
 cd verifier-agent;      langgraph dev --port 8203 --no-browser
+cd Synthesizer-agent;   langgraph dev --port 8204 --no-browser
+cd Rag-agent;           langgraph dev --port 8000 --no-browser   (needs Qdrant: see Rag-agent/README.md)
 cd superviser-agent;    langgraph dev --port 8100 --no-browser
 ```
 
@@ -163,19 +169,20 @@ asyncio.run(main())
 |---|---|
 | Graph input is exactly `{"task": AgentTask}`, output exactly `{"result": {...}}` | The orchestrator calls every agent the same way (`input_schema` / `output_schema`). |
 | `result` has `status` (`ok`/`failed`/`rejected`) and `summary` | Replanning uses `status`; UI and emails show `summary`. |
-| `card.py` with clear `when_to_use`, `when_not_to_use`, 2+ `examples`, `params_schema` | The supervisor plans only from cards. |
+| `card.py` with clear `when_to_use`, `when_not_to_use`, 2+ `examples`, `role`, `params_schema` (with descriptions) | The supervisor's LLM plans only from cards; code uses the `role`. |
 | `GET /card` in `api.py` | Discovery by the orchestrator. |
 | `interrupt()` in its own node; side effects in a later node | Nodes re-run from the top on resume. |
 | Never import another agent's package; use absolute imports | Agents only meet through the plan; `langgraph dev` loads `graph.py` by path. |
 
-## Add an agent (e.g. `data`, port 8204)
+## Add an agent (e.g. `data`, port 8205; 8205+ are free)
 
 1. Copy `verifier-agent/` to `data-agent/` and rename `src/verifier_agent` to `src/data_agent`
    (imports, graph id in `langgraph.json`, port in `Dockerfile`).
 2. In `pyproject.toml`, add `"data-agent/src/data_agent"` to `packages` and `"data-agent/tests"` to `testpaths`.
    Put any new third-party package in `requirements.txt`.
 3. Write `card.py` and `graph.py`. Make `tests/contract` pass.
-4. Add the service to `docker-compose.yml`, the agent to `superviser-agent/config/agents.dev.yaml`,
-   and the owner to `.github/CODEOWNERS`.
+4. Add the service to `docker-compose.yml`, the agent to `superviser-agent/config/agents.dev.yaml`
+   (`port`, `graph_id`, `enabled: true`), `DATA_PORT=8205` and `AGENT_DATA=${DATA_PORT}` to `.env` and `.env.example`,
+   and the owner to `.github/CODEOWNERS`. Restart the supervisor: its LLM plans with the new card.
 
 The supervisor plans with the new agent automatically, and the Multi Agent Flow UI shows it as a new node.

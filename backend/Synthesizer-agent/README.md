@@ -1,6 +1,6 @@
 # synthesizer-agent
 
-**Owner:** Person D (team-synthesizer) · **Port:** `SYNTHESIZER_PORT` in `backend/.env` (8203; 8204 in Docker) · a **LangGraph** deployment (graph `synthesizer`) with FastAPI routes
+**Owner:** Person D (team-synthesizer) · **Port:** `SYNTHESIZER_PORT` in `backend/.env` (8204) · a **LangGraph** deployment (graph `synthesizer`) with FastAPI routes
 
 A simple answering agent: it takes the outputs of earlier agents (for example the verifier), puts them in
 the prompt with the user's question, and returns the LLM's answer.
@@ -45,7 +45,7 @@ the prompt sent to the LLM), `DELETE /runs`. Kept in memory only (`SYNTHESIZER_M
 
 ```
 SYNTHESIZER_HOST=0.0.0.0   # 0.0.0.0 = reachable from other computers
-SYNTHESIZER_PORT=8203      # the port other agents send to; the UI reads it too (npm start)
+SYNTHESIZER_PORT=8204      # the port other agents send to; the UI reads it too (npm start)
 SYNTHESIZER_RELOAD=true    # restart automatically on code changes
 ```
 
@@ -69,7 +69,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-Docs: http://localhost:8203/docs · Tests: `pytest tests`
+Docs: http://localhost:8204/docs · Tests: `pytest tests`
 
 UI: in the team `frontend/` folder, `npm.cmd start` (all screens, open http://localhost:4200 → Synthesizer) or `npm.cmd run start:synthesizer-ui` (only this UI, http://localhost:4304)
 
@@ -82,7 +82,7 @@ Self-contained image (only this folder; runs as a non-root user; test tools are 
 
 ```powershell
 docker build -t altasnim/synthesizer-agent .
-docker run --rm -p 8203:8203 --env-file ../.env -e SYNTHESIZER_RELOAD=false altasnim/synthesizer-agent
+docker run --rm -p 8204:8204 --env-file ../.env -e SYNTHESIZER_RELOAD=false altasnim/synthesizer-agent
 ```
 
 Settings and the OpenAI key come from `backend/.env` at run time; they are never copied into the image

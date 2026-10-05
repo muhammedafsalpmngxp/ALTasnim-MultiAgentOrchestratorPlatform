@@ -1,18 +1,17 @@
-"""Model factory. The only place that knows which LLM provider is used.
+"""Shared model tiers, for agents that use them (today: the verifier's fallback when VERIFIER_LLM_MODEL is unset).
 
-Configure with env vars (per deployment ``.env``)::
+Configure with env vars (backend/.env)::
 
-    LLM_MODEL_STRONG=azure_openai:gpt-4.1        # supervisor
-    LLM_MODEL_STANDARD=azure_openai:gpt-4.1-mini # most agents
-    LLM_MODEL_FAST=azure_openai:gpt-4.1-nano     # cheap sub-steps
+    LLM_MODEL_STANDARD=openai:gpt-4o-mini        # checks, drafting
+    LLM_MODEL_FAST=openai:gpt-4o-mini            # cheap sub-steps
 
 The format is ``<provider>:<model>`` as accepted by ``init_chat_model``
 (openai, azure_openai, anthropic, google_genai, bedrock, ollama, ...). Install
 the matching integration package (e.g. ``langchain-openai``) in the deployment.
 
-If no model is configured, ``get_model`` returns ``None``. Every node that uses
-an LLM must then fall back to its rule-based path, so the whole platform runs
-offline for development and tests.
+Agents with their own model setting do not use these tiers: the supervisor (SUPERVISOR_LLM_MODEL), the
+communication agent (COMMUNICATION_LLM_MODEL), the synthesizer (SYNTHESIZER_OPENAI_MODEL) and web search
+(WEB_SEARCH_OPENAI_*). If no model is configured, ``get_model`` returns ``None`` and the caller skips its LLM step.
 """
 
 from __future__ import annotations

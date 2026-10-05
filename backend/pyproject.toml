@@ -9,7 +9,7 @@
 [project]
 name = "altasnim-agents"
 version = "0.1.0"
-description = "ALTasnim multi-agent orchestrator: LangGraph agents (orchestrator, web search, communication, verifier)"
+description = "ALTasnim multi-agent orchestrator: LangGraph agents (orchestrator, web search, communication, verifier, synthesizer, rag)"
 requires-python = ">=3.11,<3.14"
 dependencies = []  # see requirements.txt
 

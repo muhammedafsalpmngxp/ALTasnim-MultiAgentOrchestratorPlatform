@@ -38,7 +38,7 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   │   (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
 │   ├── Synthesizer-agent/   :8204  FastAPI: POST /synthesize (question + inputs) → the final answer (LLM)
 │   └── Rag-agent/           :8000  FastAPI: ingest files → hybrid (dense + sparse) retrieval + rerank
-│                                   (own docker-compose.yml with Qdrant; not a LangGraph deployment yet)
+│                                   (own docker-compose.yml with Qdrant; LangGraph graph "rag")
 │
 ├── frontend/                       Angular 22 · Native Federation micro-frontends
 │   ├── apps/shell/          :4200  host: layout, navigation, loads every micro-frontend
@@ -49,7 +49,6 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── agents/*-ui/      :4301-4305  one UI per agent (owned by the agent's team)
 │   └── libs/shared/                @altasnim/shared: LangGraph SDK client, flow diagram, shared UI
 │
-├── dev.mjs                         node dev.mjs <agent>: start only your agent (container + its UI)
 └── .github/                        CODEOWNERS (one owner per agent: backend + UI folder), CI workflows
 ```
 
@@ -69,33 +68,8 @@ git switch pro
 git pull
 ```
 
-**2. Start your agent: its container + its UI**
-
-| Agent | Command | Container (API) | UI |
-|---|---|---|---|
-| Web search | `node dev.mjs web-search` | `web-search-agent` http://localhost:8201 | http://localhost:4301 |
-| Communication | `node dev.mjs communication` | `communication-agent` http://localhost:8202 | http://localhost:4302 |
-| Verifier | `node dev.mjs verifier` | `verifier-agent` http://localhost:8203 | http://localhost:4303 |
-| Synthesizer | `node dev.mjs synthesizer` | `synthesizer-agent` http://localhost:8204 | http://localhost:4304 |
-| Rag | `node dev.mjs rag` | Rag-agent `api` http://localhost:8000 + `qdrant` :6333 | http://localhost:4305 |
-| Orchestrator (platform) | `node dev.mjs orchestrator` | `orchestrator-agent` http://localhost:8100 (+ the 3 agents it calls) | http://localhost:4200 (shell, flow, runs, approvals, admin) |
-
-It builds and starts only that agent's container(s), then serves only its UI on its own port. The first run creates
-`backend/.env` from `.env.example` (put your keys there) and runs `npm install`. `Ctrl+C` stops the UI; the container
-keeps running. `node dev.mjs` lists the agents.
-
-**3. While you work** (replace `rag` with your agent)
-
-| Command | Does |
-|---|---|
-| `node dev.mjs rag --backend` | rebuilds + restarts only your container, after a backend code change (the UI keeps running) |
-| `node dev.mjs rag --ui` | serves only your UI (the container is already running) |
-| `node dev.mjs rag --shell` | also serves the shell: your UI inside the platform at http://localhost:4200 (other sections show "unavailable") |
-| `node dev.mjs rag --stop` | stops your container(s) |
-
-UI code changes reload in the browser by themselves. API ports are `<AGENT>_PORT` in `backend/.env`.
-
-**Without the script:** the same two steps by hand, one terminal each.
+**2. Start your agent: its container + its UI** (one terminal each; the first time, copy `backend/.env.example` to
+`backend/.env` and put your keys there, and run `npm install` in `frontend/`)
 
 | Agent | Container (from `backend/`) | UI (from `frontend/`) |
 |---|---|---|
@@ -105,6 +79,10 @@ UI code changes reload in the browser by themselves. API ports are `<AGENT>_PORT
 | Synthesizer | `docker compose up -d --build synthesizer-agent` | `npm run start:synthesizer-ui` |
 | Rag | `docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build` | `npm run start:rag-ui` |
 | Orchestrator | `docker compose up -d --build orchestrator-agent` | `npm run start:shell` (+ `start:flow`, `start:runs`, `start:approvals`, `start:admin`) |
+
+API ports: web search 8201, communication 8202, verifier 8203, synthesizer 8204, rag 8000 (+ Qdrant 6333), orchestrator
+8100 (`<AGENT>_PORT` in `backend/.env`). UIs: 4301-4305, the platform shell 4200. After a backend code change run the
+same `docker compose up -d --build <service>` again; UI code changes reload in the browser by themselves.
 
 Stop a container by hand: `docker compose stop <service>` (Rag: `docker compose -f Rag-agent/docker-compose.yml stop`).
 Logs: `docker compose logs -f <service>` (Rag: `docker compose -f Rag-agent/docker-compose.yml logs -f`).
@@ -187,6 +165,6 @@ diagram pick up new agents automatically.
 | Done | Next |
 |---|---|
 | Supervisor v1: its LLM (`SUPERVISOR_LLM_MODEL`) plans the flow from the agent cards and reviews on failures | Supervisor v2: guardrails (inserted verifier / approval steps, step and email rules) |
-| Parallel execution, verification, replanning, human approval | Real web search provider (sample data today) |
-| 4 agent deployments, Docker Compose, 31 backend tests | Real email/Teams sending (console / Mailpit today) |
+| Parallel execution, verification, replanning, human approval | Verifier: judge parallel steps together (comparisons) |
+| 6 LangGraph deployments (live web search, RAG, verifier, synthesizer, email via SMTP), 235 backend tests | Teams channel; a company mailbox (SPF/DKIM) instead of a personal Gmail |
 | Angular micro-frontends with live flow diagram | JWT auth (`AUTH_MODE=jwt`), production Agent Server with Postgres/Redis |

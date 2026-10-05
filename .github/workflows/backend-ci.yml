@@ -5,7 +5,7 @@ on:
     paths: ["backend/**", ".github/workflows/backend-ci.yml"]
   push:
     branches: [main]
-    paths: ["backend/**"]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
 
 jobs:
   test:

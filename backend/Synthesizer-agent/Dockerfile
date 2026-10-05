@@ -5,7 +5,7 @@
 #   docker build -t altasnim/synthesizer-agent .
 #
 # Run (settings and the OpenAI key come from backend/.env, never baked into the image):
-#   docker run --rm -p 8203:8203 --env-file ../.env -e SYNTHESIZER_RELOAD=false altasnim/synthesizer-agent
+#   docker run --rm -p 8204:8204 --env-file ../.env -e SYNTHESIZER_RELOAD=false altasnim/synthesizer-agent
 #
 # The container listens on SYNTHESIZER_PORT (default 8204; docker-compose.yml uses 8204).
 
