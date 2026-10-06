@@ -31,13 +31,13 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── pyproject.toml              ONE pyproject (packages utils + all agents; pytest/ruff config)
 │   ├── docker-compose.yml          all agents, each in its own container and port
 │   ├── utils/                      shared utilities: contracts, LLM factory, env, auth, events, test kit
-│   ├── superviser-agent/    :8100  supervisor (orchestrator) graph: every agent is one of its nodes
+│   ├── superviser_agent/    :8100  supervisor (orchestrator) graph: every agent is one of its nodes
 │   ├── web_search_agent/    :8201  plan_queries → parallel search → summarize
-│   ├── communication-agent/ :8202  draft → human approval (interrupt) → send
-│   ├── verifier-agent/      :8203  parallel checks → verdict
+│   ├── communication_agent/ :8202  draft → human approval (interrupt) → send
+│   ├── verifier_agent/      :8203  parallel checks → verdict
 │   │   (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
-│   ├── Synthesizer-agent/   :8204  FastAPI: POST /synthesize (question + inputs) → the final answer (LLM)
-│   └── Rag-agent/           :8000  FastAPI: ingest files → hybrid (dense + sparse) retrieval + rerank
+│   ├── synthesizer_agent/   :8204  FastAPI: POST /synthesize (question + inputs) → the final answer (LLM)
+│   └── rag_agent/           :8000  FastAPI: ingest files → hybrid (dense + sparse) retrieval + rerank
 │                                   (own docker-compose.yml with Qdrant; LangGraph graph "rag")
 │
 ├── frontend/                       Angular 22 · Native Federation micro-frontends
@@ -77,15 +77,15 @@ git pull
 | Communication | `docker compose up -d --build communication-agent` | `npm run start:communication-ui` |
 | Verifier | `docker compose up -d --build verifier-agent` | `npm run start:verifier-ui` |
 | Synthesizer | `docker compose up -d --build synthesizer-agent` | `npm run start:synthesizer-ui` |
-| Rag | `docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build` | `npm run start:rag-ui` |
+| Rag | `docker compose -f rag_agent/docker-compose.yml --env-file .env up -d --build` | `npm run start:rag-ui` |
 | Orchestrator | `docker compose up -d --build orchestrator-agent` | `npm run start:shell` (+ `start:flow`, `start:runs`, `start:approvals`, `start:admin`) |
 
 API ports: web search 8201, communication 8202, verifier 8203, synthesizer 8204, rag 8000 (+ Qdrant 6333), orchestrator
 8100 (`<AGENT>_PORT` in `backend/.env`). UIs: 4301-4305, the platform shell 4200. After a backend code change run the
 same `docker compose up -d --build <service>` again; UI code changes reload in the browser by themselves.
 
-Stop a container by hand: `docker compose stop <service>` (Rag: `docker compose -f Rag-agent/docker-compose.yml stop`).
-Logs: `docker compose logs -f <service>` (Rag: `docker compose -f Rag-agent/docker-compose.yml logs -f`).
+Stop a container by hand: `docker compose stop <service>` (Rag: `docker compose -f rag_agent/docker-compose.yml stop`).
+Logs: `docker compose logs -f <service>` (Rag: `docker compose -f rag_agent/docker-compose.yml logs -f`).
 
 ## Run everything
 
@@ -97,12 +97,12 @@ For the full platform on one machine (e.g. a demo). From the repo root:
 cd backend
 copy .env.example .env
 docker compose up -d --build
-docker compose -f Rag-agent/docker-compose.yml --env-file .env up -d --build
+docker compose -f rag_agent/docker-compose.yml --env-file .env up -d --build
 docker compose ps
 ```
 
-Skip `copy` if `backend/.env` already exists. Wait until all services show `healthy` (Rag-agent: `docker compose -f
-Rag-agent/docker-compose.yml ps`; its models load in ~30 s).
+Skip `copy` if `backend/.env` already exists. Wait until all services show `healthy` (rag_agent: `docker compose -f
+rag_agent/docker-compose.yml ps`; its models load in ~30 s).
 
 **2. Frontend: every micro-frontend**, in a second terminal:
 
@@ -118,7 +118,7 @@ npm start
 
 ```powershell
 docker compose down
-docker compose -f Rag-agent/docker-compose.yml down
+docker compose -f rag_agent/docker-compose.yml down
 ```
 
 `down` removes the containers but keeps the data volumes (Rag's documents and model cache). Add `-v` only to delete them.
@@ -138,13 +138,13 @@ Run one agent: `cd backend/web_search_agent` then `langgraph dev --port 8201`. S
 
 | Owner | Backend | Frontend |
 |---|---|---|
-| Platform lead | `backend/utils`, `backend/superviser-agent` | – |
+| Platform lead | `backend/utils`, `backend/superviser_agent` | – |
 | Frontend lead | – | `frontend/apps`, `frontend/libs` |
 | Person A | `backend/web_search_agent` | `frontend/agents/web_search_ui` |
-| Person B | `backend/communication-agent` | `frontend/agents/communication-ui` |
-| Person C | `backend/verifier-agent` | `frontend/agents/verifier-ui` |
-| Person D | `backend/Rag-agent` | `frontend/agents/rag-ui` |
-| Person E | `backend/Synthesizer-agent` | `frontend/agents/synthesizer-ui` |
+| Person B | `backend/communication_agent` | `frontend/agents/communication-ui` |
+| Person C | `backend/verifier_agent` | `frontend/agents/verifier-ui` |
+| Person D | `backend/rag_agent` | `frontend/agents/rag-ui` |
+| Person E | `backend/synthesizer_agent` | `frontend/agents/synthesizer-ui` |
 
 Only change your own folders. Shared files (`backend/.env.example`, `backend/requirements.txt`,
 `backend/docker-compose.yml`, `frontend/proxy.conf.json`, the shell) belong to the platform and frontend leads.

@@ -43,7 +43,7 @@ qdrant_storage/
 *.db
 
 # ---- supervisor: agent planning text customised in the admin console (per machine) ----
-backend/superviser-agent/data/
+backend/superviser_agent/data/
 
 # ---- Node / Angular --------------------------------------------------
 node_modules/

@@ -6,7 +6,7 @@
 #                                          #   SMTP_USE_TLS=false), UI http://localhost:8025
 #
 # Configuration comes from the one backend/.env (all agents; template .env.example). Values under
-# `environment:` override it. The Rag agent has its own compose (Rag-agent/docker-compose.yml), same .env.
+# `environment:` override it. The Rag agent has its own compose (rag_agent/docker-compose.yml), same .env.
 name: altasnim-agents
 
 x-agent: &agent
@@ -29,7 +29,7 @@ services:
 
   communication-agent:
     <<: *agent
-    build: { context: ., dockerfile: communication-agent/Dockerfile }
+    build: { context: ., dockerfile: communication_agent/Dockerfile }
     ports: ["${COMMUNICATION_PORT:-8202}:${COMMUNICATION_PORT:-8202}"]
     environment:
       COMMUNICATION_PORT: ${COMMUNICATION_PORT:-8202}
@@ -37,14 +37,14 @@ services:
 
   verifier-agent:
     <<: *agent
-    build: { context: ., dockerfile: verifier-agent/Dockerfile }
+    build: { context: ., dockerfile: verifier_agent/Dockerfile }
     ports: ["${VERIFIER_PORT:-8203}:${VERIFIER_PORT:-8203}"]
     environment:
       VERIFIER_PORT: ${VERIFIER_PORT:-8203}
 
   synthesizer-agent:
     <<: *agent
-    build: { context: ./Synthesizer-agent }   # self-contained: only this agent's folder
+    build: { context: ./synthesizer_agent }   # self-contained: only this agent's folder
     ports: ["${SYNTHESIZER_PORT:-8204}:${SYNTHESIZER_PORT:-8204}"]
     environment:
       SYNTHESIZER_PORT: ${SYNTHESIZER_PORT:-8204}
@@ -52,7 +52,7 @@ services:
 
   orchestrator-agent:
     <<: *agent
-    build: { context: ., dockerfile: superviser-agent/Dockerfile }
+    build: { context: ., dockerfile: superviser_agent/Dockerfile }
     ports: ["${ORCHESTRATOR_PORT:-8100}:${ORCHESTRATOR_PORT:-8100}"]
     # The supervisor finds every agent on the network by its port + endpoint (AGENT_* in .env): on this machine or a
     # teammate's. Set AGENT_SUBNET to your LAN (e.g. 192.168.1.0/24); empty = this compose network only.
@@ -60,7 +60,7 @@ services:
       ORCHESTRATOR_PORT: ${ORCHESTRATOR_PORT:-8100}
       AGENT_TRANSPORT: remote
     volumes:
-      - ./superviser-agent/data:/app/superviser-agent/data   # agent planning text customised in the admin console
+      - ./superviser_agent/data:/app/superviser_agent/data   # agent planning text customised in the admin console
 
   mailpit:
     image: axllent/mailpit:latest

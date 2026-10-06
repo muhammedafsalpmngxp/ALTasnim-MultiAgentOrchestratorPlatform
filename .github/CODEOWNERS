@@ -5,7 +5,7 @@
 
 # ---- backend: platform
 /backend/utils/                     @platform-lead
-/backend/superviser-agent/          @platform-lead
+/backend/superviser_agent/          @platform-lead
 /backend/docker-compose.yml         @platform-lead
 /backend/requirements.txt           @platform-lead
 /backend/pyproject.toml             @platform-lead
@@ -18,16 +18,16 @@
 /backend/web_search_agent/          @person-a
 /frontend/agents/web_search_ui/     @person-a
 
-/backend/communication-agent/       @person-b
+/backend/communication_agent/       @person-b
 /frontend/agents/communication-ui/  @person-b
 
-/backend/verifier-agent/            @person-c
+/backend/verifier_agent/            @person-c
 /frontend/agents/verifier-ui/       @person-c
 
-/backend/Rag-agent/                 @person-d
+/backend/rag_agent/                 @person-d
 /frontend/agents/rag-ui/            @person-d
 
-/backend/Synthesizer-agent/         @person-e
+/backend/synthesizer_agent/         @person-e
 /frontend/agents/synthesizer-ui/    @person-e
 
 /.github/                           @platform-lead

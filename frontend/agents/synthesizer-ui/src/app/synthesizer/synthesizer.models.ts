@@ -1,4 +1,4 @@
-// Same shapes as backend/Synthesizer-agent/src/synthesizer_agent/api.py and runs.py
+// Same shapes as backend/synthesizer_agent/src/synthesizer_agent/api.py and runs.py
 
 /** A typical request. The agent accepts any JSON or text on any path. */
 export interface SynthesizeRequest {

@@ -1,0 +1,60 @@
+# rag_agent: Qdrant + the API.
+#
+#   cd backend/rag_agent
+#   docker compose --env-file ../.env up -d --build
+#   open http://localhost:8000/docs           (API; port = RAG_PORT in backend/.env)
+#   open http://localhost:6333/dashboard      (Qdrant UI: collection, points, vectors)
+#
+# `--env-file ../.env` lets compose read RAG_PORT from the shared backend/.env for the port mapping
+# (without it, both the mapping and the API use 8000). The container gets every key via env_file.
+#
+# The models (bge-m3, bge-reranker-v2-m3, ~4.5 GB) download on the first upload/question and are
+# cached in the `models` volume. They run on the NVIDIA GPU; on a machine without one, delete the
+# `deploy:` block below and they run on CPU.
+
+name: rag-agent
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: .
+    env_file:
+      - path: ../.env  # the one shared backend/.env (RAG_* keys)
+        required: false
+    environment:
+      - RAG_QDRANT_URL=http://qdrant:6333
+      - RAG_PORT=${RAG_PORT:-8000}  # same value as the port mapping below, so they always match
+    ports:
+      # on the LAN, so the supervisor can call it from any machine. No auth: use it on a trusted network only.
+      - "${RAG_PORT:-8000}:${RAG_PORT:-8000}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reach services on this PC, e.g. the next agent on :8203
+    volumes:
+      - models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  models:

@@ -82,7 +82,7 @@ failed). A route that is not found or not reachable is only a warning in the "Se
 is unchanged. Health: `http://127.0.0.1:8201/custom/health` → `output.urls`.
 
 **On the other machines** (not this agent's code): the route must exist and the server must listen on the network,
-e.g. the verifier in `verifier-agent/src/verifier_agent/api.py`:
+e.g. the verifier in `verifier_agent/src/verifier_agent/api.py`:
 
 ```python
 from verifier_agent.graph import graph

@@ -1,4 +1,4 @@
-/** Shape of one entry of the verifier's GET /verify/calls (backend/verifier-agent/.../api.py). */
+/** Shape of one entry of the verifier's GET /verify/calls (backend/verifier_agent/.../api.py). */
 export interface VerifyResult {
   status: 'ok' | 'failed' | string;
   passed: boolean;

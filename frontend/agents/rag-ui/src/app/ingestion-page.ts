@@ -46,7 +46,7 @@ interface Upload {
 }
 
 /**
- * Rag-agent's own page, laid out like a chat app: a sidebar to ingest files and see what is indexed,
+ * rag_agent's own page, laid out like a chat app: a sidebar to ingest files and see what is indexed,
  * and the chat. Black on white, or white on black in dark mode (the button in the sidebar, else the system theme);
  * the colors are scoped to this page.
  */

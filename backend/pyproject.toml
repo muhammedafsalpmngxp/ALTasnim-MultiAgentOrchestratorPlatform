@@ -21,22 +21,22 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = [
   "utils",
-  "superviser-agent/src/orchestrator_agent",
+  "superviser_agent/src/orchestrator_agent",
   "web_search_agent/src/web_search_agent",
-  "communication-agent/src/communication_agent",
-  "verifier-agent/src/verifier_agent",
-  "Synthesizer-agent/src/synthesizer_agent",
+  "communication_agent/src/communication_agent",
+  "verifier_agent/src/verifier_agent",
+  "synthesizer_agent/src/synthesizer_agent",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--import-mode=importlib -q"
 testpaths = [
-  "superviser-agent/tests",
+  "superviser_agent/tests",
   "web_search_agent/tests",
-  "communication-agent/tests",
-  "verifier-agent/tests",
-  "Synthesizer-agent/tests",
+  "communication_agent/tests",
+  "verifier_agent/tests",
+  "synthesizer_agent/tests",
 ]
 
 [tool.ruff]

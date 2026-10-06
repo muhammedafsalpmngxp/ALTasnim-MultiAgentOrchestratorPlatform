@@ -20,7 +20,7 @@ const split = (value: string) => value.split(',').map((s) => s.trim()).filter(Bo
 /**
  * Approval form for the communication agent's interrupt (kind: "email_approval").
  * The platform renders it inside Multi Agent Flow / Approvals and passes `request` + `decide`.
- * Resume values match backend/communication-agent/src/communication_agent/nodes/approve.py.
+ * Resume values match backend/communication_agent/src/communication_agent/nodes/approve.py.
  */
 @Component({
   selector: 'alt-email-approval-form',
