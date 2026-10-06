@@ -48,17 +48,7 @@ agents:
     port: 8204
     graph_id: synthesizer
     card:
-      role: final_answer  # its answer is the reply
-      when_to_use: >-
-        Always the last step of a question: writes ONE clear final answer from the outputs of the earlier steps
-        (depends_on them).
-      when_not_to_use: Finding facts (use rag or web_search first); sending messages.
-      examples: ["Write the final answer to: what is the retention money?"]
-      params_schema:
-        type: object
-        properties:
-          question: {type: string, description: "the user's question"}
-        required: [question]
+      role: final_answer  # its answer is the reply (the rest of its planning text is on its own card)
 
   # Sends an email after a human approves the draft (approval_mode internal). The supervisor plans it only when
   # the user asks to send something.

@@ -2,8 +2,9 @@
 
 `langgraph dev` serves it with the HTTP routes (server.py, langgraph.json), and the supervisor runs it as its
 ``synthesizer`` node. The question is ``task.params.question`` (else the task objective); the inputs are the
-outputs of the earlier steps (``task.inputs``, e.g. the rag passages and the verifier's verdict). Every call is
-listed in GET /runs, like the HTTP calls.
+outputs of the earlier steps (``task.inputs``, e.g. the rag passages and the verifier's verdict) and, when the user
+gave a text to work on, ``task.params.content`` (added to the inputs). Every call is listed in GET /runs, like the
+HTTP calls.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ from langgraph.graph import END, START, StateGraph
 
 from synthesizer_agent.agent import answer, build_prompt, llm_info
 from synthesizer_agent.runs import runs
+
+USER_CONTENT = "user_content"  # the key of params.content among the inputs
 
 
 class SynthesizerInput(TypedDict):
@@ -31,8 +34,12 @@ class SynthesizerState(SynthesizerInput, SynthesizerOutput, total=False):
 
 def synthesize(state: SynthesizerState) -> dict:
     task = state["task"]
-    question = (task.get("params") or {}).get("question") or task.get("objective")
-    inputs = task.get("inputs") or {}
+    params = task.get("params") or {}
+    question = params.get("question") or task.get("objective")
+    inputs = dict(task.get("inputs") or {})
+    content = params.get("content")
+    if isinstance(content, str) and content.strip():  # a text the user gave: worked on like an earlier step's output
+        inputs[USER_CONTENT] = {"text": content.strip()}
     llm = llm_info()
     prompt = build_prompt(question, inputs) if llm and inputs else None
     run_id = runs.start(question, inputs, llm, prompt, endpoint="graph synthesizer (supervisor)")

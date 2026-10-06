@@ -59,3 +59,16 @@ def test_params_follow_the_agents_schema():
     assert any("'to' is a required property" in e for e in errors)
     ok = Step(id="s1", agent="communication", objective="mail", params={"to": ["a@b.com"], "body": "Hello"})
     assert check_plan(plan(ok), cards) == []  # the user's text alone: one step is a valid plan
+
+
+def test_a_final_answer_with_the_users_text_in_its_content_param_needs_no_earlier_step():
+    from synthesizer_agent.card import CARD as SYNTH_CARD
+
+    from utils import AgentCard
+
+    cards = {**CARDS, "synthesizer": AgentCard.model_validate(SYNTH_CARD)}
+    with_text = Step(id="s1", agent="synthesizer", objective="summarise",
+                     params={"question": "Summarise in 2 bullets", "content": "Rig 12 moves on 3 May."})
+    assert check_plan(plan(with_text), cards) == []
+    empty = Step(id="s1", agent="synthesizer", objective="summarise", params={"question": "Summarise", "content": ""})
+    assert any("content param" in e for e in check_plan(plan(empty), cards))

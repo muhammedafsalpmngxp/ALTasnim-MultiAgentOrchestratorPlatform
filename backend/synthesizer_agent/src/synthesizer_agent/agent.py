@@ -140,7 +140,7 @@ def answer(question: str | None, inputs: dict[str, Any]) -> dict:
 
     model = _model()
     if model is None:  # no LLM configured: return the inputs' summaries
-        text = "\n\n".join(str(out.get("summary", out)) if isinstance(out, dict) else str(out)
+        text = "\n\n".join(str(out.get("summary") or out.get("text") or out) if isinstance(out, dict) else str(out)
                            for out in inputs.values())
     else:
         reply = model.invoke(build_messages(question, inputs))

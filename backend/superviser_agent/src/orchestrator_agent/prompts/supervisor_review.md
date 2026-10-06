@@ -40,7 +40,8 @@ Fill the fields of your decision in this order, and think before you commit:
 5. All the plan rules still apply: only agents from the catalogue; the fewest steps; `depends_on` lists the steps
    whose output a step needs and independent steps run in parallel; params follow the agent's schema with exact
    values from the user (texts copied verbatim); a `verifier` step only after steps that find facts, and a
-   `final_answer` step only when steps find facts to answer from (both need `depends_on`); agents with side
+   `final_answer` step only when steps find facts to answer from or the user gave a text to work on (each needs
+   `depends_on`, or the user's text in its content param); agents with side
    effects only when the user asked; content the user already gave goes straight to the agent that acts on it.
 6. Keep `success_criteria` unless the user's goal changed.
 7. Step ids are short and unique: s1, s2, s3, ...

@@ -35,13 +35,22 @@ def _find_cycle(plan: Plan) -> list[str] | None:
     return None
 
 
-# Roles that only work on the outputs of earlier steps: such a step without depends_on has nothing to work on.
+# Roles that work on the outputs of earlier steps: such a step needs depends_on, or content in a param its card marks
+# as content (``"x-content": true`` in params_schema, e.g. a text the user gave), else it has nothing to work on.
 NEEDS_INPUTS = {
     "verifier": "a verifier checks the outputs of earlier steps: give it depends_on (the steps it checks), or leave "
                 "it out when nothing was found by another step (e.g. text the user wrote needs no verification)",
-    "final_answer": "a final answer is written from the outputs of earlier steps: give it depends_on, or leave it "
-                    "out when no step finds information",
+    "final_answer": "a final answer is written from the outputs of earlier steps or from a text the user gave: give "
+                    "it depends_on, or the user's text in its content param (if its params schema has one), or "
+                    "leave it out",
 }
+
+
+def _has_content(params: dict, schema: dict) -> bool:
+    """A non-empty value in a param the agent's card marks as content ("x-content": true)."""
+    props = schema.get("properties") or {}
+    return any(isinstance(spec, dict) and spec.get("x-content") and str(params.get(name) or "").strip()
+               for name, spec in props.items())
 
 
 def _param_errors(step_id: str, agent: str, params: dict, schema: dict) -> list[str]:
@@ -71,7 +80,7 @@ def check_plan(plan: Plan, cards: dict[str, AgentCard]) -> list[str]:
         if card is None:
             errors.append(f"step {step.id}: unknown or unavailable agent {step.agent!r}; available: {sorted(cards)}")
             continue
-        if card.role in NEEDS_INPUTS and not step.depends_on:
+        if card.role in NEEDS_INPUTS and not step.depends_on and not _has_content(step.params, card.params_schema):
             errors.append(f"step {step.id} ({step.agent}): {NEEDS_INPUTS[card.role]}")
         errors.extend(_param_errors(step.id, step.agent, step.params, card.params_schema))
     if cycle := _find_cycle(plan):

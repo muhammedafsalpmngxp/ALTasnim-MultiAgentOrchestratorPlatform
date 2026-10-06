@@ -73,15 +73,18 @@ def test_the_supervisor_plans_the_question(case, supervisor):
     steps = {s.id: s for s in decision.plan.steps}
     for s in steps.values():
         print(f"  {s.id} {s.agent} <- {s.depends_on}: {s.objective} {s.params}")
-    assert Counter(s.agent for s in steps.values()) == Counter(case["expected_agents"])
+    optional = set(case.get("optional_agents", []))  # either plan is right (e.g. a final answer before an email)
+    planned = Counter(s.agent for s in steps.values() if s.agent not in optional)
+    assert planned == Counter({a: n for a, n in case["expected_agents"].items() if a not in optional})
 
     role = {s.id: CARDS[s.agent].role for s in steps.values()}
     facts = {sid for sid, r in role.items() if r in FACTS}
     verifiers = [s for s in steps.values() if role[s.id] == "verifier"]
     finals = [s for s in steps.values() if role[s.id] == "final_answer"]
     assert all(facts <= set(v.depends_on) for v in verifiers), "the verifier checks every step that finds facts"
-    for f in finals:  # the final answer comes after the facts and their check
-        assert {v.id for v in verifiers} <= set(f.depends_on) and facts & set(f.depends_on)
+    for f in finals:  # a final answer after found facts comes after them and their check
+        if facts:
+            assert {v.id for v in verifiers} <= set(f.depends_on) and facts & set(f.depends_on)
     if agent := case.get("expected_parallel"):
         same = [s for s in steps.values() if s.agent == agent]
         assert len(same) > 1 and all(not set(s.depends_on) & {o.id for o in same} for s in same), "parallel"

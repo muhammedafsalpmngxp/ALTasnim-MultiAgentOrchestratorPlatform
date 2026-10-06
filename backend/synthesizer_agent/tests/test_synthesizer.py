@@ -285,3 +285,42 @@ def test_langgraph_server_drops_only_the_catch_all_routes(monkeypatch):
     paths = {getattr(r, "path", None) for r in server.app.router.routes}
     assert "/{path:path}" not in paths  # would hide the LangGraph API (/threads, /assistants, ...)
     assert {"/synthesize", "/card", "/ok", "/runs"} <= paths
+
+
+TEXT = "Rig 12 moves to well W-7 on 3 May. The casing design is approved by the drilling superintendent."
+
+
+def test_graph_works_on_a_text_the_user_gave_without_earlier_steps(llm):
+    from synthesizer_agent.graph import graph
+
+    prompts = llm("- Rig 12 moves to W-7 on 3 May\n- The drilling superintendent approves the casing design")
+    out = graph.invoke({"task": {"task_id": "s1", "objective": "Summarise the text",
+                                 "params": {"question": "Summarise in 2 bullet points", "content": TEXT}}})
+    assert out["result"]["status"] == "ok" and "drilling superintendent" in out["result"]["answer"]
+    assert "Summarise in 2 bullet points" in prompts[0] and TEXT in prompts[0]
+
+
+def test_content_and_earlier_steps_are_used_together_and_no_llm_returns_the_text(no_llm):
+    from synthesizer_agent.graph import graph
+
+    out = graph.invoke({"task": {"task_id": "s1", "objective": "Summarise",
+                                 "params": {"question": "Q", "content": TEXT}}})
+    assert out["result"]["status"] == "ok" and out["result"]["summary"] == TEXT
+    out = graph.invoke({"task": {"task_id": "s2", "objective": "Answer", "params": {"question": QUESTION,
+                                                                                   "content": TEXT},
+                                 "inputs": VERIFIED}})
+    assert TEXT in out["result"]["summary"] and "OMR 329" in out["result"]["summary"]
+
+
+def test_without_content_or_inputs_it_still_fails_politely(no_llm):
+    from synthesizer_agent.graph import graph
+
+    out = graph.invoke({"task": {"task_id": "s1", "objective": "Summarise",
+                                 "params": {"question": "Q", "content": " "}}})
+    assert out["result"]["status"] == "failed"
+
+
+def test_card_has_the_platform_fields_and_marks_content():
+    card = client.get("/card").json()
+    assert card["role"] == "final_answer" and card["when_to_use"] and card["examples"]
+    assert card["params_schema"]["properties"]["content"]["x-content"] is True
