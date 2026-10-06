@@ -6,7 +6,6 @@ import smtplib
 import uuid
 
 import pytest
-from communication_agent import writer
 from communication_agent.api import app
 from communication_agent.channels import email as channel
 from communication_agent.graph import build_graph
@@ -16,6 +15,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from langgraph.types import Command
 
+from communication_agent import writer
 from utils import AgentTask
 
 SEARCH = {"status": "ok", "summary": "iPhone 16 (128 GB) costs OMR 299 at Example Store.",
@@ -267,3 +267,29 @@ def test_status_shows_the_setup_but_never_the_password(smtp):
     assert body["ready"] is True and body["security"] == "starttls" and body["password_set"] is True
     assert "app-password" not in str(body)
     assert client.get("/custom/sent").json() == []
+
+
+# ---- the user's own text ------------------------------------------------ #
+
+USER_TEXT = ("Hello,\n\nThe current India price is Rs 1,64,900.\n\nBest regards,\nALTasnim Agent Platform\n\n"
+             "Sources:\nhttps://example.com/a")
+
+
+def test_the_users_own_text_is_sent_exactly_as_written_without_earlier_steps(monkeypatch):
+    fake = FakeLLM()  # must not be called
+    use_llm(monkeypatch, fake)
+    params = {"to": ["rijin@gmail.com"], "cc": ["boss@x.com"], "subject": "iPhone 18 Pro India price",
+              "body": USER_TEXT}
+    _, _, out = run(params, inputs={})
+    d = draft_of(out)
+    assert (d["writer"], d["subject"], d["cc"]) == ("user", "iPhone 18 Pro India price", ["boss@x.com"])
+    assert d["body"] == USER_TEXT + "\n"  # verbatim: no greeting, signature or sources added
+    assert d["body"].count("Best regards") == 1 and "Prepared by" not in d["body"]
+    assert "Rs 1,64,900" in d["html"] and '<a href="https://example.com/a"' in d["html"]
+    assert fake.prompts == []
+
+
+def test_without_text_or_earlier_steps_the_reason_says_what_is_missing():
+    _, _, out = run({"to": ["rijin@gmail.com"]}, inputs={})
+    assert out["result"]["status"] == "failed"
+    assert "params.body" in out["result"]["summary"] and "depends_on" in out["result"]["summary"]

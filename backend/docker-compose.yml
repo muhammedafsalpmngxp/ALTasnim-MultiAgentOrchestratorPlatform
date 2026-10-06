@@ -54,6 +54,7 @@ services:
     <<: *agent
     build: { context: ., dockerfile: superviser_agent/Dockerfile }
     ports: ["${ORCHESTRATOR_PORT:-8100}:${ORCHESTRATOR_PORT:-8100}"]
+    extra_hosts: ["host.docker.internal:host-gateway"]   # this PC, searched before the LAN (AGENT_LOCAL_HOSTS)
     # The supervisor finds every agent on the network by its port + endpoint (AGENT_* in .env): on this machine or a
     # teammate's. Set AGENT_SUBNET to your LAN (e.g. 192.168.1.0/24); empty = this compose network only.
     environment:

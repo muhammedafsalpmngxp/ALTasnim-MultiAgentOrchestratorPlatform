@@ -34,12 +34,16 @@ Fill the fields of your decision in this order, and think before you commit:
    depends_on). A step that you change, or whose dependencies change, runs again.
 3. Never keep a step whose result failed, or whose data a verifier rejected: replace it (another agent, or the
    same agent with a different objective or params) and give the replacement a new id.
-4. All the plan rules still apply: only agents from the catalogue; `depends_on` lists the steps whose output a
-   step needs and independent steps run in parallel; params follow the agent's schema with exact values from the
-   user; a `verifier` step checks the facts before the final answer or any action when a verifier is available;
-   end with the `final_answer` agent when one is available; agents with side effects only when the user asked.
-5. Keep `success_criteria` unless the user's goal changed.
-6. Step ids are short and unique: s1, s2, s3, ...
+4. Read WHY a step failed before you replace it. If it had nothing to work on (no input, no content, nothing to
+   verify or answer from), do not plan the same kind of step again: give the content another way (for example the
+   user's own text in the params of the agent that acts on it), or drop the step.
+5. All the plan rules still apply: only agents from the catalogue; the fewest steps; `depends_on` lists the steps
+   whose output a step needs and independent steps run in parallel; params follow the agent's schema with exact
+   values from the user (texts copied verbatim); a `verifier` step only after steps that find facts, and a
+   `final_answer` step only when steps find facts to answer from (both need `depends_on`); agents with side
+   effects only when the user asked; content the user already gave goes straight to the agent that acts on it.
+6. Keep `success_criteria` unless the user's goal changed.
+7. Step ids are short and unique: s1, s2, s3, ...
 
 # Always
 

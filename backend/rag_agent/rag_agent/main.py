@@ -15,6 +15,7 @@ supervisor routes the result, so nothing is passed to RAG_NEXT_AGENTS.
 
 import json
 import logging
+import time
 import uuid
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -199,16 +200,52 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+CARD_DOCUMENTS = 25  # document names listed in the card
+CARD_TTL_SECONDS = 60
+_card_documents: dict = {"at": 0.0, "names": []}
+
+
+def _document_names() -> list[str]:
+    """The names of the indexed documents (cached; [] when Qdrant is not reachable)."""
+    now = time.monotonic()
+    if now - _card_documents["at"] > CARD_TTL_SECONDS:
+        try:
+            names = sorted({d["document_name"] for d in store.list_documents()})
+        except Exception as exc:  # noqa: BLE001 - the card must answer even when Qdrant is down
+            log.warning("card: cannot list the documents: %s", exc)
+            names = _card_documents["names"]
+        _card_documents.update(at=now, names=names)
+    return _card_documents["names"]
+
+
+def _coverage() -> str:
+    """What the documents cover: RAG_DOMAIN and the names of the indexed documents (read live, nothing fixed)."""
+    names = _document_names()
+    parts = []
+    if settings.domain:
+        parts.append(f"The documents cover: {settings.domain}.")
+    if names:
+        listed = "; ".join(names[:CARD_DOCUMENTS]) + (f"; and {len(names) - CARD_DOCUMENTS} more"
+                                                         if len(names) > CARD_DOCUMENTS else "")
+        parts.append(f"Indexed documents ({len(names)}): {listed}.")
+    elif not settings.domain:
+        parts.append("No document is indexed yet.")
+    return " ".join(parts)
+
+
 @app.get("/card")
 def card() -> dict:
-    """What this agent does, for the supervisor's planning (utils.contracts.AgentCard)."""
+    """What this agent does, for the supervisor's planning (utils.contracts.AgentCard). What the documents cover
+    comes from RAG_DOMAIN and the indexed documents, so the supervisor knows when to search them."""
+    coverage = _coverage()
     return {
         "name": "rag",
-        "version": "1.0.0",
-        "description": "Finds the passages of the user's uploaded documents that answer a question (hybrid dense + "
-                       "sparse search in Qdrant, then reranked).",
-        "when_to_use": "The question is about the user's own uploaded documents (contracts, reports, project rules, "
-                       "policies, manuals).",
+        "version": "1.1.0",
+        "description": "Finds the passages of the organisation's own documents that answer a question (hybrid dense "
+                       "+ sparse search in Qdrant, then reranked). " + coverage,
+        "when_to_use": "Any question about a topic these documents cover (the organisation's own knowledge, "
+                       "processes, rules, projects, operations and technical subjects), even when the user does not "
+                       "mention documents. Use it before the public web for these topics. " + coverage,
         "when_not_to_use": "Public or current information on the web (prices, news, weather); sending messages.",
         "examples": ["What is the retention money in the contract?", "Who issues the pegging sheet?"],
         "params_schema": {

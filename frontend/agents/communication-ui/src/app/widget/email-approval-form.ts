@@ -6,7 +6,7 @@ interface EmailDraft {
   subject: string;
   body: string;
   sources?: string[];
-  writer?: 'llm' | 'template';
+  writer?: 'llm' | 'template' | 'user';
   grounded?: boolean;
 }
 
@@ -28,8 +28,8 @@ const split = (value: string) => value.split(',').map((s) => s.trim()).filter(Bo
   template: `
     <div class="form stack">
       <div class="row tags">
-        <span class="tag">{{ original().writer === 'llm' ? 'Written by the LLM' : 'Written from a template' }}</span>
-        @if (original().grounded !== false) {
+        <span class="tag">{{ writerLabel() }}</span>
+        @if (original().writer === 'llm' && original().grounded !== false) {
           <span class="tag ok">Every number and link checked against the results</span>
         }
       </div>
@@ -79,6 +79,11 @@ export class EmailApprovalForm {
 
   protected readonly original = computed<EmailDraft>(
     () => this.request()?.draft ?? { to: [], cc: [], subject: '', body: '' },
+  );
+  protected readonly writerLabel = computed(() =>
+    ({ llm: 'Written by the LLM', user: 'Your own text, sent as written', template: 'Written from a template' })[
+      this.original().writer ?? 'template'
+    ],
   );
   protected readonly edited = computed(() => {
     const o = this.original();

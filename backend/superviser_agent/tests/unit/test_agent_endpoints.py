@@ -75,3 +75,15 @@ def test_registry_calls_every_agent_as_a_langgraph_deployment_and_merges_cards(m
 def test_an_agent_needs_its_graph_and_port():
     with pytest.raises(ValueError, match="graph_id and its port"):
         AgentRegistry.from_config(AgentsConfig(transport="remote", agents={"rag": AgentConfig(port=8000)}))
+
+
+def test_an_agent_on_this_machine_wins_over_the_same_agent_on_another_machine(monkeypatch):
+    """A teammate's machine on the LAN (lower IP) must not shadow the agent running here."""
+    monkeypatch.setattr(discovery, "_found", {})
+    monkeypatch.delenv("AGENT_LOCAL_HOSTS", raising=False)
+    monkeypatch.setattr(discovery, "_port_open", lambda host, port: host in ("host.docker.internal", "192.168.5.3"))
+    monkeypatch.setattr(discovery, "serves_graph", lambda base, graph_id: True)
+    assert discovery.locate(8202, "communication", subnet="192.168.5.0/24") == "http://host.docker.internal:8202"
+
+    monkeypatch.setenv("AGENT_LOCAL_HOSTS", "")  # network only
+    assert discovery.locate(8202, "communication", subnet="192.168.5.0/24", refresh=True) == "http://192.168.5.3:8202"

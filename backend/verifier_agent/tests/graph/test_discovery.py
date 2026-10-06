@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+
 from verifier_agent import discovery
 
 

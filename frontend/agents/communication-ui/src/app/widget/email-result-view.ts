@@ -16,7 +16,7 @@ import { AgentOutput } from '@altasnim/shared';
             @if (cc()) {
               · cc {{ cc() }}
             }
-            · written by {{ result()?.['writer'] === 'llm' ? 'the LLM' : 'a template' }}
+            · {{ writerText() }}
           </div>
         </div>
       </div>
@@ -36,4 +36,8 @@ export class EmailResultView {
   protected readonly logged = computed(() => this.result()?.['channel'] === 'console');
   protected readonly recipients = computed(() => ((this.result()?.['to'] as string[] | undefined) ?? []).join(', '));
   protected readonly cc = computed(() => ((this.result()?.['cc'] as string[] | undefined) ?? []).join(', '));
+  protected readonly writerText = computed(() => {
+    const writer = this.result()?.['writer'];
+    return writer === 'llm' ? 'written by the LLM' : writer === 'user' ? 'your own text' : 'written from a template';
+  });
 }

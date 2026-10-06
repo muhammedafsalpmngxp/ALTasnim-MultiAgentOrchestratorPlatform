@@ -21,6 +21,7 @@ os.environ.setdefault("ENV_FILE", os.devnull)  # before utils.env runs (see 1.)
 
 import pytest  # noqa: E402
 from web_search_agent.settings import get_settings  # noqa: E402  also registers the real package (see 2.)
+
 import communication_agent  # noqa: E402, F401  (see 2.)
 import synthesizer_agent  # noqa: E402, F401  (see 2.)
 import verifier_agent  # noqa: E402, F401  (see 2.)

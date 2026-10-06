@@ -1,7 +1,9 @@
 """Write the email from the outputs of the steps this step depends on (content.py, writer.py, render.py).
 
-Invalid recipients, a recipient outside EMAIL_ALLOWED_DOMAINS, too many recipients, or nothing to send end the
-step as failed (nothing reaches the approver). Recipients come only from the params, never from the content.
+The user's own text (params.body) is sent exactly as written; otherwise the email is written from the earlier
+steps' results. Invalid recipients, a recipient outside EMAIL_ALLOWED_DOMAINS, too many recipients, or nothing
+to send end the step as failed (nothing reaches the approver). Recipients come only from the params, never
+from the content.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from pydantic import ValidationError
 
 from communication_agent.card import CommunicationParams, EmailDraft
 from communication_agent.content import collect
-from communication_agent.render import to_html, to_text
+from communication_agent.render import text_to_html, to_html, to_text
 from communication_agent.settings import Settings, get_settings
 from communication_agent.state import State
 from communication_agent.writer import write
@@ -51,9 +53,17 @@ def draft(state: State) -> Command[Literal["approve", "__end__"]]:
     except ValueError as exc:
         return failed(f"Email not drafted: {exc}")
 
+    if params.body and params.body.strip():  # the user wrote the email: sent exactly as written (no LLM, no additions)
+        text = params.body.strip() + "\n"
+        subject = (params.subject or f"Message from {settings.from_name}").strip()
+        result = EmailDraft(to=params.to, cc=params.cc, subject=subject, body=text, html=text_to_html(text, subject),
+                            writer="user", grounded=True)
+        return Command(goto="approve", update={"draft": result.model_dump()})
+
     content = collect(task.inputs)
     if not content.text:
-        return failed("Email not drafted: the earlier steps returned no content to send.")
+        return failed("Email not drafted: there is no content to send. Give the email text (params.body) or the "
+                      "steps whose results it must contain (depends_on).")
 
     email, writer, grounded = write(task.objective, params, content, settings)
     text = to_text(email, settings.signature, content.sources, settings.from_name)

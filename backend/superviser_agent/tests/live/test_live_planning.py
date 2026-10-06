@@ -34,12 +34,14 @@ CASES = [json.loads(line) for line in DATASET.read_text(encoding="utf-8").splitl
 # The cards as the registry builds them (own card + config card fields). Rag's card is served by its API
 # (rag_agent/rag_agent/main.py, GET /card); the same text here so this test does not load its models.
 _config = load_agents_config().agents
+_COVERAGE = f"The documents cover: {os.getenv('RAG_DOMAIN') or 'the organisation’s own documents'}."
 RAG = AgentCard.model_validate({
-    "name": "rag", "version": "1.0.0",
-    "description": "Finds the passages of the user's uploaded documents that answer a question (hybrid dense + "
-                   "sparse search in Qdrant, then reranked).",
-    "when_to_use": "The question is about the user's own uploaded documents (contracts, reports, project rules, "
-                   "policies, manuals).",
+    "name": "rag", "version": "1.1.0",
+    "description": "Finds the passages of the organisation's own documents that answer a question (hybrid dense "
+                   "+ sparse search in Qdrant, then reranked). " + _COVERAGE,
+    "when_to_use": "Any question about a topic these documents cover (the organisation's own knowledge, "
+                   "processes, rules, projects, operations and technical subjects), even when the user does not "
+                   "mention documents. Use it before the public web for these topics. " + _COVERAGE,
     "when_not_to_use": "Public or current information on the web (prices, news, weather); sending messages.",
     "examples": ["What is the retention money in the contract?", "Who issues the pegging sheet?"],
     "params_schema": {"type": "object", "properties": {

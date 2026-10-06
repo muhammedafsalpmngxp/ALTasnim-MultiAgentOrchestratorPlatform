@@ -28,6 +28,9 @@ class Settings:
     candidates: int = int(os.getenv("RAG_CANDIDATES", "20"))  # per search leg, and sent to the reranker
     top_k: int = int(os.getenv("RAG_TOP_K", "5"))  # chunks returned by /retrieve (default)
     max_upload_mb: int = int(os.getenv("RAG_MAX_UPLOAD_MB", "50"))
+    # What the document collection is about, in a few words (the supervisor reads it in this agent's card to
+    # decide when to search the documents), e.g. "well construction, drilling rigs, company business rules".
+    domain: str = os.getenv("RAG_DOMAIN", "").strip()
     # Next agents: /retrieve POSTs {question, chunks} to every PORT/PATH in RAG_NEXT_AGENTS. The machine for
     # each one is found automatically on the LAN (see discovery.py). Empty = don't pass on.
     next_agents: tuple[tuple[int, str], ...] = parse_endpoints(os.getenv("RAG_NEXT_AGENTS", ""))

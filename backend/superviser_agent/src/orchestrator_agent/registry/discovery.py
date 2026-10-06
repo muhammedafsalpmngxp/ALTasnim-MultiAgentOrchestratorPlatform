@@ -4,14 +4,17 @@ An agent is a LangGraph deployment: a host with its port open that serves its gr
 Other services on the same port are skipped, and only read-only requests are made while searching. The machine
 is remembered until a call to it fails.
 
-Networks searched: ``AGENT_SUBNET`` (comma-separated, e.g. 192.168.1.0/24), else this machine's own /24. In
-Docker, the own /24 is the compose network; set the LAN to find teammates' machines.
+This machine first: ``AGENT_LOCAL_HOSTS`` (comma-separated; default ``localhost,host.docker.internal``, i.e. this
+PC also from inside a container). An agent running here always wins over the same agent on a teammate's machine.
+Then the networks: ``AGENT_SUBNET`` (comma-separated, e.g. 192.168.1.0/24), else this machine's own /24 (in Docker,
+the compose network; set the LAN to find teammates' machines).
 """
 
 from __future__ import annotations
 
 import ipaddress
 import logging
+import os
 import socket
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +24,13 @@ import httpx
 log = logging.getLogger(__name__)
 _lock = threading.Lock()
 _found: dict[tuple[int, str], str] = {}  # (port, graph_id) -> base URL, e.g. http://192.168.1.33:8000
+DEFAULT_LOCAL_HOSTS = "localhost,host.docker.internal"
+
+
+def local_hosts() -> list[str]:
+    """This machine's names, searched before the network (AGENT_LOCAL_HOSTS; empty = network only)."""
+    value = os.getenv("AGENT_LOCAL_HOSTS", DEFAULT_LOCAL_HOSTS)
+    return [h.strip() for h in value.split(",") if h.strip()]
 
 
 def subnets(value: str) -> list[ipaddress.IPv4Network]:
@@ -54,11 +64,16 @@ def locate(port: int, graph_id: str, *, subnet: str = "", refresh: bool = False)
     with _lock:
         if not refresh and key in _found:
             return _found[key]
-    # searched outside the lock, so the agents are searched in parallel
-    hosts = [str(h) for net in subnets(subnet) for h in net.hosts()]
-    with ThreadPoolExecutor(max_workers=64) as pool:
-        open_hosts = [h for h, up in zip(hosts, pool.map(lambda h: _port_open(h, port), hosts), strict=True) if up]
-    found = next((base for base in (f"http://{h}:{port}" for h in open_hosts) if serves_graph(base, graph_id)), None)
+    # searched outside the lock, so the agents are searched in parallel. This machine first, then the network.
+    found = next((f"http://{h}:{port}" for h in local_hosts()
+                  if _port_open(h, port) and serves_graph(f"http://{h}:{port}", graph_id)), None)
+    open_hosts: list[str] = []
+    if not found:
+        hosts = [str(h) for net in subnets(subnet) for h in net.hosts()]
+        with ThreadPoolExecutor(max_workers=64) as pool:
+            open_hosts = [h for h, up in zip(hosts, pool.map(lambda h: _port_open(h, port), hosts), strict=True) if up]
+        found = next((base for base in (f"http://{h}:{port}" for h in open_hosts) if serves_graph(base, graph_id)),
+                     None)
     if found:
         log.info("agent %s (graph %s) found at %s", port, graph_id, found)
     else:

@@ -2,6 +2,7 @@
 
 import httpx
 from fastapi.testclient import TestClient
+
 from verifier_agent import api
 
 RAG_OUTPUT = {"question": "What is the notice period?",

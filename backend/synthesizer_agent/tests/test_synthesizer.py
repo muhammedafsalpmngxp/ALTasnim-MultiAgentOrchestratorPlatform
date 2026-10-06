@@ -6,8 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_openai import ChatOpenAI
-from synthesizer_agent import agent
 from synthesizer_agent.api import app
+
+from synthesizer_agent import agent
 
 client = TestClient(app)
 QUESTION = "What is the iPhone 16 price in Oman?"
