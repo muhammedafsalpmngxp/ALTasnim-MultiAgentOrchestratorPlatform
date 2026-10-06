@@ -2,7 +2,7 @@
 # LangGraph deployment ({"task": AgentTask} in, {"result": {...}} out). The supervisor plans which nodes run,
 # in which order, and passes each one's output to the next:
 #
-#   question -> rag (the user's documents) | web_search (the web) -> verifier -> synthesizer -> answer
+#   question -> rag (the user's documents) | web_search (the web) -> synthesizer -> check (verifier) -> answer
 #
 # port + graph_id: where the agent listens and its graph (called via /threads/{id}/runs). The supervisor finds
 # the machine on the network itself (no IPs). backend/.env overrides (section superviser_agent):

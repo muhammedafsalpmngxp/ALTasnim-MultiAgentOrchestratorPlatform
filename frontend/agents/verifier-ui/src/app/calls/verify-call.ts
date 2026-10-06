@@ -1,29 +1,35 @@
-/** Shape of one entry of the verifier's GET /verify/calls (backend/verifier_agent/.../api.py). */
+/** Shape of one entry of the verifier's GET /verify/calls (backend/verifier_agent/.../calls.py). */
+
+/** One part of the user's question, and whether the answer responds to it. */
+export interface Part {
+  part: string;
+  kind?: 'fact' | 'action';
+  answered: boolean;
+}
+
 export interface VerifyResult {
   status: 'ok' | 'failed' | string;
   passed: boolean;
+  summary: string;
   issues: string[];
   warnings: string[];
-  summary: string;
-}
-
-export interface VerifyTask {
-  task_id?: string;
-  objective?: string;
-  params?: Record<string, unknown>;
-  inputs?: Record<string, unknown>;
+  missing?: string[];
+  rejected_steps?: string[];
+  fix?: 'none' | 'rewrite_answer';
+  parts?: Part[];
+  checked?: { answer_step?: string | null; model?: string | null };
 }
 
 export interface VerifyCall {
   id: string;
   received_at: string;
-  client: string;
+  task_id: string | null;
   question: string;
-  task: VerifyTask;
-  payload: Record<string, unknown>;
+  answer_step: string | null;
+  answer: string;
   result?: VerifyResult;
   error?: string;
-  duration_ms?: number;
+  duration_ms?: number | null;
 }
 
 export type Verdict = 'passed' | 'failed' | 'error' | 'running';
@@ -34,86 +40,11 @@ export function verdictOf(call: VerifyCall): Verdict {
   return call.result.passed ? 'passed' : 'failed';
 }
 
-/** One web result inside a step output (web-search agent's `findings`). */
-export interface Finding {
-  rank: number;
-  title: string;
-  url: string;
-  domain: string;
-  content: string;
-}
-
-/** One earlier step the verifier checked (an entry of task.inputs). */
-export interface CheckedStep {
-  id: string;
-  status: string | null;
-  summary: string;
-  findings: Finding[];
-  sources: string[];
-  checks: Check[];
-  raw: unknown;
-}
-
-export interface Check {
-  label: string;
-  passed: boolean;
-  detail?: string;
-}
-
-/**
- * The verifier's rules (nodes/checks.py), each marked failed when the server reported the matching issue.
- * The server's `issues` stay the source of truth; this only groups them per step.
- */
-const RULES: { label: string; issue: string }[] = [
-  { label: 'Output is an object', issue: 'output is not an object' },
-  { label: 'Step reported ok', issue: 'step reported status' },
-  { label: 'Has summary', issue: 'missing summary' },
-  { label: 'Has findings', issue: 'no findings' },
-  { label: 'Source URLs valid', issue: 'invalid source URLs' },
-];
-
-export function checkedSteps(call: VerifyCall): CheckedStep[] {
-  const issues = call.result?.issues ?? [];
-  return Object.entries(call.task?.inputs ?? {}).map(([id, out]) => {
-    const o = (typeof out === 'object' && out !== null ? out : {}) as Record<string, unknown>;
-    const checks = RULES.map((rule) => {
-      const hit = issues.find((i) => i.startsWith(`${id}: ${rule.issue}`));
-      return { label: rule.label, passed: !hit, detail: hit?.slice(id.length + 2) };
-    });
-    return {
-      id,
-      status: typeof o['status'] === 'string' ? (o['status'] as string) : null,
-      summary: String(o['summary'] ?? ''),
-      findings: toFindings(o['findings']),
-      sources: Array.isArray(o['sources']) ? o['sources'].map(String) : [],
-      checks,
-      raw: out,
-    };
-  });
-}
-
-function toFindings(value: unknown): Finding[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((f, i) => {
-    const o = (typeof f === 'object' && f !== null ? f : { content: String(f) }) as Record<string, unknown>;
-    const url = String(o['url'] ?? '');
-    return {
-      rank: Number(o['rank'] ?? i + 1),
-      title: String(o['title'] ?? ''),
-      url,
-      domain: domainOf(url),
-      content: String(o['content'] ?? o['snippet'] ?? ''),
-    };
-  });
-}
-
-export function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
+/** What the supervisor is told to do after a failed check. */
+export const FIX_LABEL: Record<string, string> = {
+  rewrite_answer: 'Write the answer again so it matches the question',
+  none: 'No step blamed (the check could not run)',
+};
 
 /** "just now", "42s ago", "5m ago", "3h ago", or a date. */
 export function timeAgo(iso: string, now: number): string {

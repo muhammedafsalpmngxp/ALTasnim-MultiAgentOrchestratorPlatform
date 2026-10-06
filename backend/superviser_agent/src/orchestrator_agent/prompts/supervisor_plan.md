@@ -42,25 +42,25 @@ Fill the fields of your decision in this order, and think before you commit:
    schema, or described as the user's own text), copied verbatim, every line, with no other step.
 5. `depends_on` lists the steps whose OUTPUT a step needs. A step starts only when all of them have finished and
    it receives their outputs. Steps without a dependency between them run IN PARALLEL: never chain steps that do
-   not need each other's output. An agent that works on earlier outputs (role `verifier` or `final_answer`) needs
-   `depends_on`, or the user's text in its content param (rule 4); if it has neither, leave that agent out.
+   not need each other's output. An agent that works on earlier outputs (role `final_answer`) needs `depends_on`,
+   or the user's text in its content param (rule 4); if it has neither, leave that agent out.
 6. `objective`: one clear, self-contained instruction for the agent (it does not see the conversation).
 7. `params`: follow the agent's params schema exactly (required fields included). Copy exact values from the user
    (names, email addresses, numbers, dates, places, texts). Leave out optional params you do not need. Do not
    invent values.
 8. `expected_output`: one line on what a good result of that step looks like.
-9. Checking facts: only when steps FIND or TRANSFORM facts, and an agent with role `verifier` is in the catalogue,
-   add one verifier step that depends on exactly those steps, before the final answer or any action. Never verify
-   content the user wrote themselves.
+9. Checking: the platform itself checks that every final answer matches the user's question. Never plan a step
+   that only checks or verifies; plan the work.
 10. Final answer: when the user asked a question and steps find the facts, end with the agent with role
-    `final_answer` (if in the catalogue); it depends on the steps whose facts it needs and on the verifier step. When
-    the user gave a text to summarise, rewrite or answer from, that agent alone does it, with the text in its
-    content param. Give it the user's question (or what to do with the text) in its params when its schema has a
-    question field. Not after an action just to report it: the platform reports every step's result itself.
+    `final_answer` (if in the catalogue); it depends on the steps whose facts it needs. When the user gave a text to
+    summarise, rewrite or answer from, that agent alone does it, with the text in its content param. Give it the
+    user's question (or what to do with the text) in its params when its schema has a question field. Not after an
+    action just to report it: the platform reports every step's result itself.
 11. Agents with `side effects: yes` (they send or change something outside the platform) only when the user
-    explicitly asked for that action; after the facts they use are found and checked, or alone when the user gave
-    the content (rule 4).
-12. `success_criteria`: 1 to 4 short, checkable statements of what "done" means for this request.
+    explicitly asked for that action; after the facts they use are found, or alone when the user gave the content
+    (rule 4).
+12. `success_criteria`: 1 to 4 short, checkable statements of what "done" means for this request (each part the
+    user asked for).
 13. Step ids are short and unique: s1, s2, s3, ...
 14. `goal`: the request as one task. `plan.reasoning`: the chosen agents and order in one or two sentences.
 

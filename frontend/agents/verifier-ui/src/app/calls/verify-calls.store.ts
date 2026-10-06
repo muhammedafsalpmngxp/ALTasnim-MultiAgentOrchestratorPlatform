@@ -7,7 +7,7 @@ export type VerdictFilter = 'all' | 'passed' | 'failed';
 
 const POLL_MS = 3000;
 
-/** Live list of calls to POST /verify, polled from the verifier. Provided per page, stops polling on destroy. */
+/** Live list of the platform's checks (GET /verify/calls), polled from the verifier. Provided per page, stops polling on destroy. */
 @Injectable()
 export class VerifyCallsStore {
   private readonly base = `${agentApiUrl('verifier')}/verify/calls`;
@@ -28,7 +28,7 @@ export class VerifyCallsStore {
       const v = verdictOf(c);
       if (f === 'passed' && v !== 'passed') return false;
       if (f === 'failed' && v !== 'failed' && v !== 'error') return false;
-      return !q || `${c.question} ${c.task?.task_id ?? ''} ${c.client}`.toLowerCase().includes(q);
+      return !q || `${c.question} ${c.task_id ?? ''}`.toLowerCase().includes(q);
     });
   });
 
@@ -56,11 +56,7 @@ export class VerifyCallsStore {
       failed: calls.filter((c) => ['failed', 'error'].includes(verdictOf(c))).length,
       passRate: done.length ? Math.round((passed / done.length) * 100) : null,
       avgMs: timed.length ? Math.round(timed.reduce((s, c) => s + c.duration_ms!, 0) / timed.length) : null,
-      sources: calls.reduce(
-        (n, c) => n + Object.values(c.task?.inputs ?? {}).reduce<number>(
-          (m, o) => m + (Array.isArray((o as { sources?: unknown[] })?.sources) ? (o as { sources: unknown[] }).sources.length : 0), 0),
-        0,
-      ),
+      rewrites: done.filter((c) => c.result!.fix === 'rewrite_answer').length,
     };
   });
 

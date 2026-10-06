@@ -15,9 +15,9 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # backend/superviser_agent
 class Policies(BaseModel):
     """The supervisor's limits and rules (config/policies.yaml; an admin can change them at runtime).
 
-    Supervisor v1 uses the limits (max_replans, max_clarifications, max_plan_repairs): they end the loops. The
-    guardrails below them (max_steps, verify_*, allowed_email_domains) are kept for the admin console and come
-    back in v2; v1 does not enforce them (the supervisor's LLM adds the verifier steps itself).
+    The limits (max_replans, max_clarifications, max_plan_repairs) end the loops. verify_final is
+    the platform's check (planning/checks.py). max_steps and allowed_email_domains are kept for the admin console
+    and are not enforced yet.
     """
 
     max_replans: int = Field(2, ge=0, le=10)
@@ -25,9 +25,10 @@ class Policies(BaseModel):
     # How often the supervisor's LLM may fix a plan that cannot run (unknown step in depends_on, a cycle, ...).
     max_plan_repairs: int = Field(2, ge=0, le=5)
     max_steps: int = Field(10, ge=1, le=50)
+    verify_final: bool = True  # check that every final answer matches the user's question
+    # not used (the final answer is checked instead); kept so saved policies and the admin console still load
     verify_before_approval: bool = True
     verify_before_synthesis: bool = True
-    verify_final: bool = True
     allowed_email_domains: list[str] = Field(default_factory=list)
 
 

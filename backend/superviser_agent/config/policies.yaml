@@ -1,17 +1,17 @@
 # The supervisor's limits (an admin can change them at runtime in the admin console).
 # backend/.env SUPERVISOR_MAX_REPLANS, SUPERVISOR_MAX_PLAN_REPAIRS, SUPERVISOR_MAX_CLARIFICATIONS override the 3 below.
 
-# Limits used by supervisor v1: they end the loops.
-max_replans: 2          # revised plans per question (after a failed step / rejected verification)
+# Limits: they end the loops.
+max_replans: 2          # revised plans per question (after a failed step / a failed check)
 max_clarifications: 2   # questions back to the user per question
 max_plan_repairs: 2     # times the supervisor's LLM may fix a plan that cannot run
 
-# Guardrails: kept for the admin console, NOT enforced by supervisor v1 (planned for v2). In v1 the supervisor's
-# LLM adds the verifier steps itself.
-max_steps: 10
-# Insert a verifier step before any step that needs human approval (approval_mode internal/gate).
-verify_before_approval: true
-# If the plan has no verifier at all, add one on the final steps.
+# The platform's checks (planning/checks.py): the verifier (card role "verifier") is run by the platform, never
+# planned by the supervisor's LLM. After every final answer: does it match the user's question? (question + answer
+# only). A failed check sends the supervisor back to write the answer again.
 verify_final: true
+
+# Kept for the admin console, not enforced yet.
+max_steps: 10
 # Email recipients allowed for the communication agent. Empty = any (dev only). Production e.g. ["altasnim.com"]
 allowed_email_domains: []

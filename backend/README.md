@@ -41,7 +41,7 @@ backend/
 │
 ├── web_search_agent/          [Person A]  :8201   plan_queries → Send(search ×N) → extract → rerank → result
 ├── communication_agent/       [Person B]  :8202   draft (LLM, facts checked) → approve (interrupt) → send (SMTP)
-├── verifier_agent/            [Person C]  :8203   (check_evidence ‖ check_completeness ‖ check_answer) → verdict
+├── verifier_agent/            [Person C]  :8203   collect → (rules ‖ judge) → verdict
 ├── rag_agent/                 [Person D]  :8000   retrieve (Qdrant hybrid + rerank); own docker-compose.yml + Qdrant
 └── synthesizer_agent/         [Person E]  :8204   synthesize (one final answer from the earlier steps)
     every agent folder:

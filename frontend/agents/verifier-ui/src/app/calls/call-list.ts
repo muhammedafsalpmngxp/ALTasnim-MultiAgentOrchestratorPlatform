@@ -11,7 +11,7 @@ import { VerifyCall, timeAgo, verdictOf } from './verify-call';
     <div class="tools">
       <label class="search">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 3a5.5 5.5 0 1 0 3.4 9.8l3.6 3.7 1.1-1.1-3.7-3.6A5.5 5.5 0 0 0 8.5 3Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
-        <input type="search" placeholder="Search question, task, sender" [value]="store.query()"
+        <input type="search" placeholder="Search question or step" [value]="store.query()"
                (input)="store.query.set($any($event.target).value)" aria-label="Search calls" />
       </label>
       <div class="seg" role="tablist" aria-label="Filter by verdict">
@@ -35,8 +35,7 @@ import { VerifyCall, timeAgo, verdictOf } from './verify-call';
           <div class="sub">
             <span class="chip" [attr.data-v]="verdict(c)">{{ verdict(c) }}</span>
             <span>{{ ago(c) }}</span>
-            <span class="dot">·</span>
-            <span>{{ sourceCount(c) }} {{ sourceCount(c) === 1 ? 'source' : 'sources' }}</span>
+            @if (c.task_id) { <span class="dot">·</span><span>{{ c.task_id }}</span> }
           </div>
         </li>
       } @empty {
@@ -99,10 +98,4 @@ export class CallList {
     return timeAgo(c.received_at, this.store.now());
   }
 
-  protected sourceCount(c: VerifyCall): number {
-    return Object.values(c.task?.inputs ?? {}).reduce<number>((n, o) => {
-      const s = (o as { sources?: unknown })?.sources;
-      return n + (Array.isArray(s) ? s.length : 0);
-    }, 0);
-  }
 }

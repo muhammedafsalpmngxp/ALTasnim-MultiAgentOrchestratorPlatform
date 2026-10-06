@@ -16,9 +16,13 @@ independently.
 
 | Request | Plan created by the supervisor |
 |---|---|
-| What is the price of iPhone? | `web_search` → `verifier` |
-| check the price of iphone then share the mail to rijin@gmail.com | `web_search` → `verifier` → `communication` (waits for approval) |
-| Compare iPhone price in Oman and UAE and email it to rijin@gmail.com | `web_search` ‖ `web_search` → `verifier` → `communication` |
+| What is the price of iPhone 16 in India? | `web_search` → `synthesizer` → check (`verifier`, added by the platform) |
+| check the price of iphone then share the mail to rijin@gmail.com | `web_search` → check → `communication` (waits for approval) |
+| Compare iPhone price in Oman and UAE and email it to rijin@gmail.com | `web_search` ‖ `web_search` → check → `communication` |
+
+The check only asks: does the answer match the question (every part answered, same topic)? It reads no sources and
+searches nothing. A failed check sends the supervisor back to write the answer again, up to `SUPERVISOR_MAX_REPLANS`
+times; then it answers honestly.
 | check the iPhone price and email it | asks the user: "Who should I send it to?" |
 
 ## Repository structure
@@ -34,7 +38,7 @@ ALTasnim-MultiAgentOrchestratorPlatform/
 │   ├── superviser_agent/    :8100  supervisor (orchestrator) graph: every agent is one of its nodes
 │   ├── web_search_agent/    :8201  plan_queries → parallel search → summarize
 │   ├── communication_agent/ :8202  draft → human approval (interrupt) → send
-│   ├── verifier_agent/      :8203  parallel checks → verdict
+│   ├── verifier_agent/      :8203  does the answer match the question → verdict
 │   │   (each agent: Dockerfile · langgraph.json · README · CHANGELOG · src/ · tests/)
 │   ├── synthesizer_agent/   :8204  FastAPI: POST /synthesize (question + inputs) → the final answer (LLM)
 │   └── rag_agent/           :8000  FastAPI: ingest files → hybrid (dense + sparse) retrieval + rerank
@@ -164,7 +168,7 @@ diagram pick up new agents automatically.
 
 | Done | Next |
 |---|---|
-| Supervisor v1: its LLM (`SUPERVISOR_LLM_MODEL`) plans the flow from the agent cards and reviews on failures | Supervisor v2: guardrails (inserted verifier / approval steps, step and email rules) |
-| Parallel execution, verification, replanning, human approval | Verifier: judge parallel steps together (comparisons) |
-| 6 LangGraph deployments (live web search, RAG, verifier, synthesizer, email via SMTP), 235 backend tests | Teams channel; a company mailbox (SPF/DKIM) instead of a personal Gmail |
+| Supervisor v1: its LLM (`SUPERVISOR_LLM_MODEL`) plans the flow from the agent cards and reviews on failures | Supervisor v2: step and email rules |
+| Parallel execution, a platform check that every answer matches the question, targeted replanning, human approval | Synthesizer: a stronger model (it sometimes adds facts from memory) |
+| 6 LangGraph deployments (live web search, RAG, verifier, synthesizer, email via SMTP), 300 backend tests | Teams channel; a company mailbox (SPF/DKIM) instead of a personal Gmail |
 | Angular micro-frontends with live flow diagram | JWT auth (`AUTH_MODE=jwt`), production Agent Server with Postgres/Redis |

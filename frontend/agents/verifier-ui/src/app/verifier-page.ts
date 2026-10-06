@@ -8,7 +8,7 @@ import { timeAgo } from './calls/verify-call';
 
 type Tab = 'calls' | 'agent';
 
-/** Team Quality's own page: live /verify calls + the agent card. Always light, whatever the OS theme. */
+/** Team Quality's own page: the platform's checks (verdicts) + the agent card. Always light, whatever the OS theme. */
 @Component({
   selector: 'alt-verifier-page',
   imports: [AgentCardView, CallList, CallDetail],
@@ -46,7 +46,7 @@ type Tab = 'calls' | 'agent';
           <div class="meter"><i [style.width.%]="s().passRate ?? 0"></i></div>
         </div>
         <div class="kpi"><span>Avg. time</span><strong>{{ s().avgMs != null ? s().avgMs + ' ms' : '—' }}</strong><em>per check</em></div>
-        <div class="kpi"><span>Sources</span><strong>{{ s().sources }}</strong><em>checked</em></div>
+        <div class="kpi"><span>Rewrites</span><strong>{{ s().rewrites }}</strong><em>answers sent back</em></div>
       </section>
 
       @if (store.calls().length) {
@@ -55,7 +55,7 @@ type Tab = 'calls' | 'agent';
             <vf-call-list />
             <footer class="lf">
               <button type="button" class="link" (click)="clear()">Clear history</button>
-              <span>in memory · last 200</span>
+              <span>in memory · last 50</span>
             </footer>
           </aside>
           <main class="pane detail">
@@ -75,8 +75,8 @@ type Tab = 'calls' | 'agent';
           @if (store.connected() === false) {
             <p>Start the verifier on port 8203 (<code>docker compose up verifier-agent</code>). This page reconnects on its own.</p>
           } @else {
-            <p>Anything sent to <code>POST /verify</code> shows up here within a few seconds, with its question, evidence and verdict.</p>
-            <pre>{{ curlExample }}</pre>
+            <p>Every check the platform runs shows up here within a few seconds: the question, the answer and the
+              verdict. Ask a question in the shell (http://localhost:4200) to see one.</p>
           }
         </div>
       }
@@ -90,15 +90,15 @@ type Tab = 'calls' | 'agent';
         }
         <div class="pane note">
           <h2>When it runs</h2>
-          <p>Added automatically by the orchestrator's policy: before any human approval, and at the end of plans without a
-            verifier. A failed verification makes the supervisor replan. Other agents can also push results straight to
-            <code>POST /verify</code>.</p>
+          <p>Run by the platform, never planned by the supervisor's LLM: after every final answer. It checks only that the answer matches the user's question
+            (every part answered, same topic), in one LLM call: no sources, no fact checking, no searching. A failed
+            check sends the supervisor back to write the answer again, up to <code>SUPERVISOR_MAX_REPLANS</code> times.</p>
         </div>
         <div class="pane note">
           <h2>Endpoints</h2>
           <table>
-            <tr><td><code>POST /verify</code></td><td>Verify pushed output: <code>{{ '{' }}"task": …{{ '}' }}</code> or any step output</td></tr>
-            <tr><td><code>GET /verify/calls</code></td><td>Recent calls (this page)</td></tr>
+            <tr><td><code>GET /verify/calls</code></td><td>Recent verdicts (this page)</td></tr>
+            <tr><td><code>GET /verify/status</code></td><td>The checking model (<code>VERIFIER_LLM_MODEL</code>)</td></tr>
             <tr><td><code>GET /card</code></td><td>Agent card</td></tr>
             <tr><td><code>POST /runs/wait</code></td><td>LangGraph run, used by the orchestrator</td></tr>
           </table>
@@ -212,10 +212,6 @@ export class VerifierPage {
     const last = this.store.calls()[0];
     return last ? `last ${timeAgo(last.received_at, this.store.now())}` : 'none yet';
   });
-
-  protected readonly curlExample = `curl -X POST http://<this-machine>:8203/verify \\
-  -H "Content-Type: application/json" \\
-  -d '{"status":"ok","summary":"…","findings":[…],"sources":["https://…"]}'`;
 
   constructor() {
     fetch(`${agentApiUrl('verifier')}/card`)

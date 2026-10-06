@@ -1,8 +1,8 @@
 """Supervisor: its LLM decides what happens (planning/llm_supervisor.py). The plan says WHICH agents run and WHEN.
 
 plan mode   (no plan yet: a new request, or after a clarification)  -> answer | clarify | plan
-review mode (progress calls it again: a step failed, a verifier rejected data, or the run ended without a
-             final answer)                                          -> finish | plan (revised) | clarify | answer
+review mode (progress calls it again: a step failed, the platform's check rejected the result, or the run
+             ended without a final answer)                          -> finish | plan (revised) | clarify | answer
 
 The limits are code: max_clarifications, max_replans (revised plans per request). A revised plan keeps the
 plan's id (version + 1) and the results of the steps it keeps unchanged.
@@ -80,9 +80,11 @@ def make_supervisor(get_deps: DepsProvider):
         if not cards:
             return _reply("No agent is available right now. Please try again in a moment.")
 
+        # The verifiers are run by the platform (plan_guard adds the checks), so the LLM never plans one.
+        planning = {name: card for name, card in cards.items() if card.role != "verifier"}
         ctx = SupervisorContext(
-            mode=mode, request=state["request"], cards=cards, history=history(state), clarifications=clarifications,
-            plan=previous, results=results, step_status=state.get("step_status", {}),
+            mode=mode, request=state["request"], cards=planning, history=history(state),
+            clarifications=clarifications, plan=previous, results=results, step_status=state.get("step_status", {}),
             feedback=state.get("feedback", []), review_reason=state.get("review_reason"),
             replans_left=max(0, policies.max_replans - replans), max_repairs=policies.max_plan_repairs,
         )

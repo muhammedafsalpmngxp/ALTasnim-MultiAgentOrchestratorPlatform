@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { AgentOutput } from '@altasnim/shared';
 
+import { FIX_LABEL } from '../calls/verify-call';
+
 /** How a verifier result looks inside Multi Agent Flow / Runs. */
 @Component({
   selector: 'alt-verdict-view',
@@ -9,6 +11,9 @@ import { AgentOutput } from '@altasnim/shared';
     <div class="verdict" [class.passed]="passed()">
       {{ passed() ? '✓ Verification passed' : '✗ Verification failed' }}
     </div>
+    @if (!passed() && fix()) {
+      <div class="next">Next: {{ fix() }}@if (rejected().length) { · redo {{ rejected().join(', ') }} }</div>
+    }
     @if (issues().length) {
       <ul class="issues">
         @for (i of issues(); track i) {
@@ -27,6 +32,7 @@ import { AgentOutput } from '@altasnim/shared';
   styles: `
     .verdict { font-weight: 600; color: var(--danger); margin: 6px 0; }
     .verdict.passed { color: var(--ok); }
+    .next { font-size: 12px; color: var(--text-muted); margin: 2px 0 4px; }
     ul { margin: 4px 0; padding-left: 18px; font-size: 12px; }
     .issues { color: var(--danger); }
     .warnings { color: var(--warn); }
@@ -36,5 +42,7 @@ export class VerdictView {
   readonly result = input<AgentOutput | null>(null);
   protected readonly passed = computed(() => this.result()?.['passed'] === true);
   protected readonly issues = computed(() => (this.result()?.['issues'] as string[] | undefined) ?? []);
+  protected readonly fix = computed(() => FIX_LABEL[(this.result()?.['fix'] as string | undefined) ?? ''] ?? '');
+  protected readonly rejected = computed(() => (this.result()?.['rejected_steps'] as string[] | undefined) ?? []);
   protected readonly warnings = computed(() => (this.result()?.['warnings'] as string[] | undefined) ?? []);
 }

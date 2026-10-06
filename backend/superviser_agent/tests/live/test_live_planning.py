@@ -4,8 +4,8 @@ Costs one LLM call per question, so it runs only on request:
 
     RUN_LIVE=1 SUPERVISOR_LLM_MODEL=openai:<model> OPENAI_API_KEY=... pytest superviser_agent/tests/live
 
-(in Docker: docker run --env-file .env -e RUN_LIVE=1 ...). Checks the action, the agents chosen, that the verifier
-checks the steps that find the facts, that the final answer comes last, and which steps run in parallel.
+(in Docker: docker run --env-file .env -e RUN_LIVE=1 ...). Checks the action, the agents chosen (the LLM never plans the
+verifier), that the final answer comes after the facts, which steps run in parallel, and the checks the platform adds.
 """
 
 import json
@@ -15,8 +15,10 @@ from pathlib import Path
 
 import pytest
 from communication_agent.card import CARD as COMM
+from orchestrator_agent.planning.checks import add_checks
 from orchestrator_agent.planning.llm_supervisor import LLMSupervisor, SupervisorContext
-from orchestrator_agent.settings import load_agents_config
+from orchestrator_agent.planning.validate import check_plan
+from orchestrator_agent.settings import Policies, load_agents_config
 from synthesizer_agent.card import CARD as SYNTH_CARD
 from verifier_agent.card import CARD as VERIFIER
 from web_search_agent.card import CARD as SEARCH
@@ -52,6 +54,7 @@ RAG = AgentCard.model_validate({
 })
 SYNTH = AgentCard.model_validate({**SYNTH_CARD, **(_config["synthesizer"].card or {})})
 CARDS = {"rag": RAG, "web_search": SEARCH, "verifier": VERIFIER, "synthesizer": SYNTH, "communication": COMM}
+PLANNING = {name: card for name, card in CARDS.items() if card.role != "verifier"}  # what the LLM sees
 FACTS = {"source", "transform"}
 
 
@@ -62,7 +65,7 @@ def supervisor():
 
 @pytest.mark.parametrize("case", CASES, ids=[c["request"][:40] for c in CASES])
 def test_the_supervisor_plans_the_question(case, supervisor):
-    ctx = SupervisorContext(mode="plan", request=case["request"], cards=CARDS)
+    ctx = SupervisorContext(mode="plan", request=case["request"], cards=PLANNING)
     decision = supervisor.decide(ctx)
     print(f"\n{case['request']}\n  understanding: {decision.understanding}\n  reasoning: {decision.reasoning}"
           f"\n  usage: {ctx.usage}")
@@ -79,12 +82,19 @@ def test_the_supervisor_plans_the_question(case, supervisor):
 
     role = {s.id: CARDS[s.agent].role for s in steps.values()}
     facts = {sid for sid, r in role.items() if r in FACTS}
-    verifiers = [s for s in steps.values() if role[s.id] == "verifier"]
     finals = [s for s in steps.values() if role[s.id] == "final_answer"]
-    assert all(facts <= set(v.depends_on) for v in verifiers), "the verifier checks every step that finds facts"
-    for f in finals:  # a final answer after found facts comes after them and their check
+    for f in finals:  # a final answer after found facts comes after them
         if facts:
-            assert {v.id for v in verifiers} <= set(f.depends_on) and facts & set(f.depends_on)
+            assert facts & set(f.depends_on), "the final answer uses the facts found"
+
+    # the checks the platform adds: one after each final answer (or before an action on found facts), runnable
+    checked = add_checks(decision.plan, CARDS, Policies(), case["request"])
+    assert check_plan(checked, CARDS) == []
+    added = [s for s in checked.steps if s.added_by == "policy"]
+    for s in added:
+        print(f"  + {s.id} {s.agent} <- {s.depends_on}")
+    if finals and facts:
+        assert {f"check_{f.id}" for f in finals} <= {s.id for s in added}
     if agent := case.get("expected_parallel"):
         same = [s for s in steps.values() if s.agent == agent]
         assert len(same) > 1 and all(not set(s.depends_on) & {o.id for o in same} for s in same), "parallel"

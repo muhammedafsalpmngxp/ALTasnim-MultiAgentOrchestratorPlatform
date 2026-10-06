@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSign
 import { OrchestratorService, PlatformPolicies } from '@altasnim/shared';
 
 type NumberKey = 'max_steps' | 'max_replans' | 'max_clarifications';
-type ToggleKey = 'verify_before_synthesis' | 'verify_before_approval' | 'verify_final';
+type ToggleKey = 'verify_final';
 
 /** Same ranges as the supervisor's Policies model (settings.py): it rejects anything else. */
 const LIMITS: { key: NumberKey; label: string; hint: string; min: number; max: number }[] = [
@@ -12,9 +12,7 @@ const LIMITS: { key: NumberKey; label: string; hint: string; min: number; max: n
 ];
 
 const CHECKS: { key: ToggleKey; label: string; hint: string }[] = [
-  { key: 'verify_before_synthesis', label: 'Verify before the answer is written', hint: 'A verifier step checks what rag or web search found before the synthesizer uses it. Off: no fallback to web search when rag finds the wrong thing.' },
-  { key: 'verify_before_approval', label: 'Verify before human approval', hint: 'The approver of a step (e.g. an email) sees checked data.' },
-  { key: 'verify_final', label: 'Verify every plan', hint: 'A plan without any verifier gets one on its final steps.' },
+  { key: 'verify_final', label: 'Check every answer', hint: 'The verifier checks that each final answer matches what the user asked. A failed check sends the supervisor back to write the answer again.' },
 ];
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import operator
-from typing import Annotated
+from typing import Annotated, Any
 
 from utils import AgentInput, AgentOutput
 
 
-def _merge(a: dict, b: dict) -> dict:
-    return {**a, **b}
-
-
 class State(AgentInput, AgentOutput, total=False):
-    # The checks run in parallel and append here, so these need reducers.
+    started: float  # perf_counter at collect, for the call log
+    request: str  # what the user asked
+    answer: dict[str, Any] | None  # {"step", "status", "text", "shape"} of the answer (None: no answer found)
+    # rules and judge run in parallel and both write these
     issues: Annotated[list[str], operator.add]
     warnings: Annotated[list[str], operator.add]
-    judgements: Annotated[dict[str, dict], _merge]  # check_answer: step_id -> {verified, reason}
+    judgement: dict[str, Any] | None  # the judge's structured output (None: skipped or failed)
+    judge_error: str | None

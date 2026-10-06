@@ -203,13 +203,20 @@ def render_context(ctx: SupervisorContext) -> str:
             why = ("All steps finished, but no final_answer step wrote the reply. Check the results against the "
                    "success criteria: finish (write the reply from the results) or plan the missing work.")
         else:
-            why = "A step failed or a verifier rejected data:\n" + "\n".join(f"- {f}" for f in ctx.feedback)
+            why = ("A step failed, or the platform's check rejected the result:\n"
+                   + "\n".join(f"- {f}" for f in ctx.feedback))
         sections.append("WHY YOU ARE REVIEWING\n" + why)
         if ctx.plan:
             lines = [f"goal: {ctx.plan.goal}",
                      "success criteria: " + ("; ".join(ctx.plan.success_criteria) or "(none)"), ""]
             for step in ctx.plan.steps:
                 status, detail = _step_state(ctx, step.id)
+                if step.added_by == "policy":  # the platform's check: added again by the platform, never copied
+                    lines.append(f"- {step.id} · the platform's check of {', '.join(step.depends_on)} · "
+                                 f"status: {status}")
+                    if step.id in ctx.results:
+                        lines.append("  result: " + digest(ctx.results[step.id].get("output")).replace("\n", "\n  "))
+                    continue
                 lines.append(f"- {step.id} · agent {step.agent} · status: {status}")
                 lines.append(f"  objective: {step.objective}")
                 if step.params:

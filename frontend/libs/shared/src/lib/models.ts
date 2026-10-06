@@ -147,7 +147,8 @@ export interface PlatformPolicies {
   /** How often the supervisor's LLM may fix a plan that cannot run. */
   max_plan_repairs?: number;
   verify_before_approval: boolean;
-  verify_before_synthesis: boolean;
+  /** Not used since the platform checks the final answer (kept so older saved policies still load). */
+  verify_before_synthesis?: boolean;
   verify_final: boolean;
   allowed_email_domains: string[];
 }

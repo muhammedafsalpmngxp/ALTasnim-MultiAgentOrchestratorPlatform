@@ -32,19 +32,26 @@ Fill the fields of your decision in this order, and think before you commit:
 1. Write the WHOLE plan again: the steps to keep and the new or changed steps.
 2. To reuse a finished step's result, keep that step EXACTLY as it is (same id, agent, objective, params,
    depends_on). A step that you change, or whose dependencies change, runs again.
-3. Never keep a step whose result failed, or whose data a verifier rejected: replace it (another agent, or the
+3. Never keep a step whose result failed, or whose data the check rejected: replace it (another agent, or the
    same agent with a different objective or params) and give the replacement a new id.
-4. Read WHY a step failed before you replace it. If it had nothing to work on (no input, no content, nothing to
-   verify or answer from), do not plan the same kind of step again: give the content another way (for example the
-   user's own text in the params of the agent that acts on it), or drop the step.
-5. All the plan rules still apply: only agents from the catalogue; the fewest steps; `depends_on` lists the steps
+   The platform's check steps (shown as "the platform's check of ...") are added again by the platform: never write
+   them in your plan, and never plan a step that only checks or verifies.
+4. When the platform's check failed (the answer does not match the question), follow its "how to fix" line: keep
+   the fact steps unchanged and add a new final answer step on them, whose objective (and question param) says
+   exactly what the user asked and what the previous answer missed. Only when the results do not hold what the
+   question needs, also add a step that finds that part. When the check could not run: `finish` if the results
+   answer the request, else `answer` honestly. With no replans left, `answer`: give what was found and say plainly
+   what could not be answered.
+5. Read WHY a step failed before you replace it. If it had nothing to work on (no input, no content, nothing to
+   answer from), do not plan the same kind of step again: give the content another way (for example the user's own
+   text in the params of the agent that acts on it), or drop the step.
+6. All the plan rules still apply: only agents from the catalogue; the fewest steps; `depends_on` lists the steps
    whose output a step needs and independent steps run in parallel; params follow the agent's schema with exact
-   values from the user (texts copied verbatim); a `verifier` step only after steps that find facts, and a
-   `final_answer` step only when steps find facts to answer from or the user gave a text to work on (each needs
-   `depends_on`, or the user's text in its content param); agents with side
-   effects only when the user asked; content the user already gave goes straight to the agent that acts on it.
-6. Keep `success_criteria` unless the user's goal changed.
-7. Step ids are short and unique: s1, s2, s3, ...
+   values from the user (texts copied verbatim); a `final_answer` step only when steps find facts to answer from or
+   the user gave a text to work on (it needs `depends_on`, or the user's text in its content param); agents with
+   side effects only when the user asked; content the user already gave goes straight to the agent that acts on it.
+7. Keep `success_criteria` unless the user's goal changed.
+8. Step ids are short and unique: s1, s2, s3, ...
 
 # Always
 

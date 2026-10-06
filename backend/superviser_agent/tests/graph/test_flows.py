@@ -38,7 +38,7 @@ def searches(*regions: str) -> list[dict]:
 
 
 def script(ctx):
-    """What the supervisor's LLM plans for these requests (search -> verify [-> email])."""
+    """What the supervisor's LLM plans for these requests (search [-> email]; the platform adds the check)."""
     if ctx.review_reason == "complete":  # the run ended without a final_answer agent: the step summaries
         return SupervisorDecision(action="finish")
     text = " ".join([ctx.request, *ctx.clarifications])
@@ -50,11 +50,11 @@ def script(ctx):
         return SupervisorDecision(action="clarify", question="Who should I send it to?")
     found = searches("Oman", "UAE") if "Compare" in ctx.request else searches()
     ids = [s["id"] for s in found]
-    steps = [*found, {"id": "v1", "agent": "verifier", "objective": "Check the prices", "depends_on": ids}]
+    steps = list(found)
     if wants_email:
         steps.append({"id": "m1", "agent": "communication", "objective": f"Email the results to {emails[0]}",
                       "params": {"channel": "email", "to": emails, "subject": "iPhone price"},
-                      "depends_on": [*ids, "v1"]})
+                      "depends_on": ids})
     return plan(ctx.request, *steps)
 
 
@@ -91,14 +91,13 @@ def sent(monkeypatch):
     return emails
 
 
-async def test_q1_price_question_search_then_verify():
+async def test_q1_price_question_is_searched_and_the_step_summary_is_the_reply():
     graph, cfg = make_graph(), new_thread()
     out = await graph.ainvoke({"request": "What is the price of iPhone?"}, cfg)
 
     assert "__interrupt__" not in out
-    assert [s["id"] for s in out["plan"]["steps"]] == ["s1", "v1"]
+    assert [s["id"] for s in out["plan"]["steps"]] == ["s1"]  # no final answer and no action: nothing to check
     assert out["results"]["s1"]["status"] == "ok"
-    assert out["results"]["v1"]["output"]["passed"] is True
     assert "web_search" in out["final"]  # no final_answer agent: the step summaries
     assert {v["status"] for v in out["step_status"].values()} == {"done"}
 
@@ -111,7 +110,7 @@ async def test_q2_price_then_email_waits_for_approval_then_sends_once(sent):
     pending = out["__interrupt__"][0].value
     assert pending["kind"] == "agent_approval" and pending["agent"] == "communication"
     assert pending["request"]["draft"]["to"] == ["rijin@gmail.com"]
-    assert out["results"]["v1"]["status"] == "ok"  # verified before the human sees it
+    assert all(s["agent"] != "verifier" for s in out["plan"]["steps"])  # no final answer: nothing to check
     assert sent == []
 
     out = await graph.ainvoke(Command(resume={"action": "approve"}), cfg)

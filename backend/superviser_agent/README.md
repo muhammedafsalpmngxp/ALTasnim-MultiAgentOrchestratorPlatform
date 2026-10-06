@@ -31,11 +31,15 @@ intake -> supervisor -> plan_guard -> progress --Send--> rag | web_search | veri
    It fills, in order: `understanding` → `needs` → `reasoning` → `action` (answer | clarify | plan) → the plan
    (`goal`, `success_criteria`, steps with `agent`, `objective`, `params`, `depends_on`, `expected_output`).
    `depends_on` sets the order and what each step receives; steps without a dependency run in parallel. The LLM
-   adds the verifier step itself (before the final answer).
+   never plans a verifier (it is not in its catalogue): the platform adds the checks (step 3).
 2. The output schema is built per call: `agent` can only be an agent available right now. A plan that cannot run
    (unknown step in `depends_on`, a cycle, ...) goes back to the LLM with the errors (`max_plan_repairs`).
-3. **Review mode**, only on events: a step failed, a verifier rejected data (those steps are marked failed and never
-   reused), or the run ended without a `final_answer` agent. The LLM sees the plan, each step's status and result
+3. **The platform's check** (`planning/checks.py`, run by `plan_guard`, found by role `verifier`): a check step
+   (`check_<id>`, `added_by: policy`) after every final answer: does the answer match the user's question? It gets
+   only the question and the answer. Policy `verify_final`.
+4. **Review mode**, only on events: a step failed, a check failed (only the answer is marked failed; the fact
+   steps are kept and the answer is written again),
+   or the run ended without a `final_answer` agent. The LLM sees the plan, each step's status and result
    (short digest) and the failures, and decides: finish | plan v2 (same `plan_id`, version + 1; unchanged finished
    steps keep their results) | clarify | answer. With no replan left it writes the honest reply.
 
@@ -44,8 +48,10 @@ agent-specific comes from the cards, so a new agent needs no prompt or code chan
 Agents are recognised by their **role** (`AgentCard.role`: source | transform | final_answer | verifier | action),
 never by name.
 
-v1 has no guardrails (no inserted verifier / approval steps, no step or email rules): they come back in v2. The
-limits that end the loops stay: `max_replans`, `max_clarifications`, `max_plan_repairs` (`config/policies.yaml`).
+The limits that end the loops: `max_replans`, `max_clarifications`, `max_plan_repairs` (`config/policies.yaml`,
+overridden by `SUPERVISOR_MAX_REPLANS`, `SUPERVISOR_MAX_CLARIFICATIONS`, `SUPERVISOR_MAX_PLAN_REPAIRS` in
+`backend/.env`). Each failed check uses one replan; with none left the supervisor writes the honest reply. Step and
+email rules (`max_steps`, `allowed_email_domains`) are not enforced yet.
 
 ## Config
 
