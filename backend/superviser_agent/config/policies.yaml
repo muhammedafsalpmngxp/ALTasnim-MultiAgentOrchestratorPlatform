@@ -1,4 +1,5 @@
 # The supervisor's limits (an admin can change them at runtime in the admin console).
+# backend/.env SUPERVISOR_MAX_REPLANS, SUPERVISOR_MAX_PLAN_REPAIRS, SUPERVISOR_MAX_CLARIFICATIONS override the 3 below.
 
 # Limits used by supervisor v1: they end the loops.
 max_replans: 2          # revised plans per question (after a failed step / rejected verification)

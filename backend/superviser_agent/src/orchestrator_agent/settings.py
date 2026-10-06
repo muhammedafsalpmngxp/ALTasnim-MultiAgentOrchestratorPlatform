@@ -57,9 +57,23 @@ def _resolve(path: str) -> Path:
     return p if p.is_absolute() else PACKAGE_ROOT / p
 
 
+# backend/.env overrides of the loop limits (the yaml values are the defaults)
+ENV_LIMITS = {
+    "max_replans": "SUPERVISOR_MAX_REPLANS",
+    "max_plan_repairs": "SUPERVISOR_MAX_PLAN_REPAIRS",
+    "max_clarifications": "SUPERVISOR_MAX_CLARIFICATIONS",
+}
+
+
 def load_policies(path: str | None = None) -> Policies:
     file = _resolve(path or os.getenv("POLICIES_CONFIG", "config/policies.yaml"))
-    return Policies.model_validate(yaml.safe_load(file.read_text(encoding="utf-8")) or {})
+    data = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+    for field, env in ENV_LIMITS.items():
+        if value := os.getenv(env, "").strip():
+            if not value.isdigit():  # fail at startup on a typo, not in the middle of a run
+                raise ValueError(f"{env}={value!r} must be a whole number, e.g. 2")
+            data[field] = int(value)
+    return Policies.model_validate(data)  # out-of-range values (e.g. 99) fail here with the allowed range
 
 
 def load_agents_config(path: str | None = None) -> AgentsConfig:
